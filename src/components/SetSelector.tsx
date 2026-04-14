@@ -12,16 +12,19 @@ interface SetSelectorProps {
   redeemableAmount: number
   onRedeem: () => void
   hydrated: boolean
+  economyEnabled: boolean
 }
 
 function SetCard({
   set,
   onClick,
   canAfford,
+  showPrice = true,
 }: {
   set: SetInfo
   onClick: () => void
   canAfford: boolean
+  showPrice?: boolean
 }) {
   const [logoLoaded, setLogoLoaded] = useState(false)
 
@@ -97,9 +100,12 @@ function SetCard({
       >
         {set.name}
       </h3>
-      <p className="mt-1 text-xs" style={{ color: canAfford ? '#9ca3af' : '#555' }}>
-        {canAfford ? `$${set.price.toFixed(2)}` : `Need $${set.price.toFixed(2)}`}
-      </p>
+      {showPrice && (
+        <p className="mt-1 text-xs" style={{ color: canAfford ? '#9ca3af' : '#555' }}>
+          {canAfford ? `$${set.price.toFixed(2)}` : `Need $${set.price.toFixed(2)}`}
+        </p>
+      )}
+      {!showPrice && <p className="mt-1 text-xs text-gray-400">Click to open a pack</p>}
     </motion.button>
   )
 }
@@ -111,7 +117,10 @@ export default function SetSelector({
   redeemableAmount,
   onRedeem,
   hydrated,
+  economyEnabled,
 }: SetSelectorProps) {
+  const showEconomy = economyEnabled && hydrated
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-12">
       <motion.div
@@ -129,40 +138,46 @@ export default function SetSelector({
         <p className="text-lg text-gray-400">Select a set to open a pack</p>
 
         {/* Economy bar */}
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: hydrated ? 1 : 0, y: hydrated ? 0 : 8 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          className="mt-6 inline-flex items-center gap-4 rounded-2xl px-6 py-3 text-sm"
-          style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
-        >
-          <span className="font-bold text-white">
-            💰 ${balance.toFixed(2)}
-          </span>
-          <span className="text-gray-400">·</span>
-          <span className="text-yellow-300">
-            ⭐ {points} {points === 1 ? 'pt' : 'pts'}
-          </span>
-          <AnimatePresence>
-            {redeemableAmount > 0 && (
-              <motion.button
-                key="redeem"
-                initial={{ opacity: 0, scale: 0.85 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.85 }}
-                transition={{ duration: 0.15 }}
-                onClick={onRedeem}
-                className="rounded-full px-3 py-1 text-xs font-bold text-black"
-                style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)' }}
-              >
-                Redeem +${redeemableAmount}.00
-              </motion.button>
-            )}
-          </AnimatePresence>
-        </motion.div>
-        {redeemableAmount === 0 && points > 0 && (
+        <AnimatePresence>
+          {showEconomy && (
+            <motion.div
+              key="economy-bar"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.25 }}
+              className="mt-6 inline-flex items-center gap-4 rounded-2xl px-6 py-3 text-sm"
+              style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <span className="font-bold text-white">
+                💰 ${balance.toFixed(2)}
+              </span>
+              <span className="text-gray-400">·</span>
+              <span className="text-yellow-300">
+                ⭐ {points} {points === 1 ? 'pt' : 'pts'}
+              </span>
+              <AnimatePresence>
+                {redeemableAmount > 0 && (
+                  <motion.button
+                    key="redeem"
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.15 }}
+                    onClick={onRedeem}
+                    className="rounded-full px-3 py-1 text-xs font-bold text-black"
+                    style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)' }}
+                  >
+                    Redeem +${redeemableAmount}.00
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {showEconomy && redeemableAmount === 0 && points > 0 && (
           <p className="mt-2 text-xs text-gray-600">
-            {10 - points} more flips to redeem $1
+            {10 - (points % 10)} more flips to redeem $1
           </p>
         )}
       </motion.div>
@@ -183,7 +198,8 @@ export default function SetSelector({
             <SetCard
               set={set}
               onClick={() => onSelectSet(set.id)}
-              canAfford={hydrated && balance >= set.price}
+              canAfford={!economyEnabled || (hydrated && balance >= set.price)}
+              showPrice={economyEnabled}
             />
           </motion.div>
         ))}

@@ -7,19 +7,24 @@ import SetSelector from '@/components/SetSelector'
 import PackOpener from '@/components/PackOpener'
 import { useCollection } from '@/hooks/useCollection'
 import { useEconomy } from '@/hooks/useEconomy'
+import { useSettings } from '@/hooks/useSettings'
 
 export default function Home() {
   const [selectedSet, setSelectedSet] = useState<SetId | null>(null)
   const { addPack } = useCollection()
   const economy = useEconomy()
+  const { economyEnabled } = useSettings()
 
   const handleSelectSet = useCallback(
     (setId: SetId) => {
-      const price = SET_MAP[setId].price
-      const ok = economy.deductPackCost(price)
-      if (ok) setSelectedSet(setId)
+      if (economyEnabled) {
+        const price = SET_MAP[setId].price
+        const ok = economy.deductPackCost(price)
+        if (!ok) return
+      }
+      setSelectedSet(setId)
     },
-    [economy]
+    [economy, economyEnabled]
   )
 
   const handleBack = useCallback(() => {
@@ -39,7 +44,7 @@ export default function Home() {
         setId={selectedSet}
         onBack={handleBack}
         onPackOpened={handlePackOpened}
-        onFlip={economy.earnPoint}
+        onFlip={economyEnabled ? economy.earnPoint : undefined}
       />
     )
   }
@@ -52,6 +57,7 @@ export default function Home() {
       redeemableAmount={economy.redeemableAmount}
       onRedeem={economy.redeemPoints}
       hydrated={economy.hydrated}
+      economyEnabled={economyEnabled}
     />
   )
 }
