@@ -363,17 +363,18 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                         transformStyle: 'preserve-3d',
                         width: 260,
                         height: 364,
-                        transformOrigin: '62% 48%',
                       }}
                       animate={{
                         rotateY: isFlipped ? 180 : 0,
-                        rotateZ: isFlipped ? [0, -4, 0] : 0,
-                        y: isFlipped ? [0, -18, 0] : 0,
+                        rotateZ: isFlipped ? [0, -6, 0] : 0,
+                        y: isFlipped ? [0, -24, 0] : 0,
+                        x: isFlipped ? [0, 16, 0] : 0,
                       }}
                       transition={{
                         rotateY: { duration: 0.7, type: 'spring', stiffness: 70, damping: 13 },
                         rotateZ: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
                         y: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
+                        x: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
                       }}
                     >
                       {/* Back face */}
