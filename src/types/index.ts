@@ -21,6 +21,7 @@ export interface SetInfo {
   accent: string
   gradient: string[]
   logoUrl: string
+  price: number
 }
 
 export interface CollectionEntry {

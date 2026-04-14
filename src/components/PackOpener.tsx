@@ -14,6 +14,7 @@ interface PackOpenerProps {
   setId: SetId
   onBack: () => void
   onPackOpened: (pack: PackResult) => void
+  onFlip?: () => void
 }
 
 type Phase = 'ready' | 'loading' | 'revealing' | 'done'
@@ -128,7 +129,7 @@ function SpotlightFront({ card, setInfo }: { card: PokemonCard; setInfo: SetInfo
   )
 }
 
-export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerProps) {
+export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: PackOpenerProps) {
   const [phase, setPhase] = useState<Phase>('ready')
   const [cards, setCards] = useState<PokemonCard[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -163,11 +164,12 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
     if (!isFlipped) {
       // First click: flip the card face-up
       setIsFlipped(true)
+      onFlip?.()
     } else {
       // Second click: send it to the strip
       setIsTransitioning(true)
     }
-  }, [isTransitioning, isFlipped])
+  }, [isTransitioning, isFlipped, onFlip])
 
   const handleExitComplete = useCallback(() => {
     if (!isTransitioning) return
@@ -324,10 +326,10 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                 {phase === 'revealing' && !isTransitioning && currentCard && (
                   <motion.div
                     key={currentIndex}
-                    initial={{ y: -50, opacity: 0, scale: 0.85 }}
+                    initial={{ y: -30, opacity: 0, scale: 0.92 }}
                     animate={{ y: 0, opacity: 1, scale: 1 }}
-                    exit={{ y: 60, opacity: 0, scale: 0.4 }}
-                    transition={{ duration: 0.38, ease: [0.32, 0, 0.67, 0] }}
+                    exit={{ y: 50, opacity: 0, scale: 0.45 }}
+                    transition={{ duration: 0.2, ease: [0, 0, 0.2, 1] }}
                     className="flex cursor-pointer flex-col items-center gap-4"
                     onClick={handleCardClick}
                   >
@@ -344,10 +346,10 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                         x: isFlipped ? [0, 16, 0] : 0,
                       }}
                       transition={{
-                        rotateY: { duration: 0.7, type: 'spring', stiffness: 70, damping: 13 },
-                        rotateZ: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-                        y: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
-                        x: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
+                        rotateY: { duration: 0.5, type: 'spring', stiffness: 90, damping: 14 },
+                        rotateZ: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+                        y: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+                        x: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
                       }}
                     >
                       {/* Back face */}
@@ -392,7 +394,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                             ],
                           }}
                           exit={{ opacity: 0, y: 6 }}
-                          transition={{ opacity: { duration: 0.25 }, y: { duration: 0.25 }, background: { duration: 2.4, repeat: Infinity } }}
+                          transition={{ opacity: { duration: 0.15 }, y: { duration: 0.15 }, background: { duration: 2.4, repeat: Infinity } }}
                           className="rounded-full px-4 py-1.5 text-xs font-bold text-white"
                         >
                           ✨ HOLO RARE
@@ -404,7 +406,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: 6 }}
-                          transition={{ duration: 0.25 }}
+                          transition={{ duration: 0.15 }}
                           className="rounded-full px-4 py-1.5 text-xs font-bold text-white"
                           style={{
                             background: 'linear-gradient(90deg,rgba(180,130,0,.9),rgba(255,215,0,.9))',
@@ -419,7 +421,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                     {/* Pill below the card */}
                     <motion.span
                       animate={{ opacity: [0.7, 1, 0.7] }}
-                      transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
                       className="rounded-full px-4 py-1.5 text-xs font-semibold"
                       style={{ background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.75)', backdropFilter: 'blur(8px)' }}
                     >
@@ -434,6 +436,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
                   className="flex flex-col items-center gap-5"
                 >
                   <div className="text-3xl font-extrabold text-white">Pack Complete! 🎉</div>
@@ -474,7 +477,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                       key={card.id + '-' + i}
                       initial={{ scale: 0, opacity: 0, y: -20 }}
                       animate={{ scale: 1, opacity: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 250, damping: 22 }}
+                      transition={{ type: 'spring', stiffness: 350, damping: 24 }}
                     >
                       <Card card={card} compact onClick={() => setZoomedCard(card)} />
                     </motion.div>

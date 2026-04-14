@@ -9,6 +9,7 @@ export const SETS: SetInfo[] = [
     accent: '#FFD700',
     gradient: ['#0d0d1a', '#1a0a2e', '#0a1628'],
     logoUrl: `${BASE}/logos/base1.png`,
+    price: 2.99,
   },
   {
     id: 'base2',
@@ -16,6 +17,7 @@ export const SETS: SetInfo[] = [
     accent: '#4CAF50',
     gradient: ['#0a1a0d', '#0d2e1a', '#091a0f'],
     logoUrl: `${BASE}/logos/base2.png`,
+    price: 3.29,
   },
   {
     id: 'base3',
@@ -23,6 +25,7 @@ export const SETS: SetInfo[] = [
     accent: '#C0A060',
     gradient: ['#1a1a0a', '#2e2a0a', '#1a160a'],
     logoUrl: `${BASE}/logos/base3.png`,
+    price: 3.29,
   },
   {
     id: 'base4',
@@ -30,6 +33,7 @@ export const SETS: SetInfo[] = [
     accent: '#60A0FF',
     gradient: ['#0d0d1a', '#1a0a2e', '#0a1628'],
     logoUrl: `${BASE}/logos/base4.png`,
+    price: 3.29,
   },
   {
     id: 'base5',
@@ -37,6 +41,7 @@ export const SETS: SetInfo[] = [
     accent: '#FF4444',
     gradient: ['#1a0a0a', '#2e0a0a', '#1a0808'],
     logoUrl: `${BASE}/logos/base5.png`,
+    price: 3.29,
   },
 ]
 
