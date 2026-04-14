@@ -35,7 +35,7 @@ function CardBack({ accent }: { accent: string }) {
       {/* Real card back (locally hosted) */}
       {!imgError && (
         <img
-          src="/card-back.jpg"
+          src={`${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/card-back.jpg`}
           alt="Card Back"
           className="absolute inset-0 h-full w-full rounded-2xl object-cover"
           style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s' }}
