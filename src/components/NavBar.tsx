@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useEconomy } from '@/hooks/useEconomy'
 import { useSettings } from '@/hooks/useSettings'
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
@@ -24,11 +23,8 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 export default function NavBar() {
-  const { balance, points, hydrated } = useEconomy()
   const { economyEnabled, setEconomyEnabled } = useSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
-
-  const showEconomy = economyEnabled && hydrated
 
   return (
     <>
@@ -41,39 +37,6 @@ export default function NavBar() {
           >
             ⚡ Pack Opener
           </Link>
-
-          {/* Center: economy tracker */}
-          <AnimatePresence>
-            {showEconomy && (
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-3 rounded-xl px-3 py-1.5 text-sm"
-                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
-              >
-                <span className="font-bold text-white">💰 ${balance.toFixed(2)}</span>
-                <span className="text-white/30">·</span>
-                <span className="flex items-center gap-1 text-yellow-300">
-                  <span>⭐</span>
-                  <AnimatePresence mode="popLayout">
-                    <motion.span
-                      key={points}
-                      initial={{ opacity: 0, y: -8, scale: 1.3 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.25, ease: 'easeOut' }}
-                      className="inline-block tabular-nums"
-                    >
-                      {points}
-                    </motion.span>
-                  </AnimatePresence>
-                  <span className="text-yellow-300/70">pts</span>
-                </span>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
           {/* Right: nav links + settings */}
           <div className="flex items-center gap-4">

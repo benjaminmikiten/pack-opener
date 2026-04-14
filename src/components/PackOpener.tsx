@@ -7,6 +7,8 @@ import Link from 'next/link'
 import { SetId, PokemonCard, PackResult, SetInfo } from '@/types'
 import { SET_MAP } from '@/lib/sets'
 import { generatePack } from '@/lib/packGenerator'
+import { useEconomy } from '@/hooks/useEconomy'
+import { useSettings } from '@/hooks/useSettings'
 import Card from './Card'
 import CardModal from './CardModal'
 
@@ -130,6 +132,8 @@ function SpotlightFront({ card, setInfo }: { card: PokemonCard; setInfo: SetInfo
 }
 
 export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: PackOpenerProps) {
+  const { balance, points } = useEconomy()
+  const { economyEnabled } = useSettings()
   const [phase, setPhase] = useState<Phase>('ready')
   const [cards, setCards] = useState<PokemonCard[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -203,25 +207,56 @@ export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: Pack
       }}
     >
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-        >
-          ← Back to Sets
-        </button>
-        <h2
-          className="text-2xl font-bold"
-          style={{ color: setInfo.accent, textShadow: `0 0 12px ${setInfo.accent}88` }}
-        >
-          {setInfo.name}
-        </h2>
-        <Link
-          href="/collection"
-          className="rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
-        >
-          Collection →
-        </Link>
+      <div className="mb-8 flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className="rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            ← Back to Sets
+          </button>
+          <h2
+            className="text-2xl font-bold"
+            style={{ color: setInfo.accent, textShadow: `0 0 12px ${setInfo.accent}88` }}
+          >
+            {setInfo.name}
+          </h2>
+          <Link
+            href="/collection"
+            className="rounded-lg px-4 py-2 text-sm text-gray-400 transition-colors hover:bg-white/10 hover:text-white"
+          >
+            Collection →
+          </Link>
+        </div>
+
+        {/* Economy indicator */}
+        {economyEnabled && (
+          <div className="flex justify-center">
+            <div
+              className="flex items-center gap-3 rounded-xl px-4 py-2 text-sm"
+              style={{ background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.08)' }}
+            >
+              <span className="font-bold text-white">💰 ${balance.toFixed(2)}</span>
+              <span className="text-white/30">·</span>
+              <span className="flex items-center gap-1 text-yellow-300">
+                <span>⭐</span>
+                <AnimatePresence mode="popLayout">
+                  <motion.span
+                    key={points}
+                    initial={{ opacity: 0, y: -6, scale: 1.3 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className="inline-block tabular-nums"
+                  >
+                    {points}
+                  </motion.span>
+                </AnimatePresence>
+                <span className="text-yellow-300/70">pts</span>
+              </span>
+            </div>
+          </div>
+        )}
       </div>
 
       {error && (
