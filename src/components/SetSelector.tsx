@@ -43,6 +43,7 @@ function SetCard({ set, onClick }: { set: SetInfo; onClick: () => void }) {
             transition: 'opacity 0.3s',
             filter: `drop-shadow(0 0 8px ${set.accent}99)`,
           }}
+          ref={(el) => { if (el?.complete && el.naturalWidth > 0) setLogoLoaded(true) }}
           onLoad={() => setLogoLoaded(true)}
           onError={(e) => {
             ;(e.target as HTMLImageElement).style.display = 'none'

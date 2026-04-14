@@ -39,6 +39,7 @@ function CardBack({ accent }: { accent: string }) {
           alt="Card Back"
           className="absolute inset-0 h-full w-full rounded-2xl object-cover"
           style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.3s' }}
+          ref={(el) => { if (el?.complete && el.naturalWidth > 0) setImgLoaded(true) }}
           onLoad={() => setImgLoaded(true)}
           onError={() => setImgError(true)}
           draggable={false}
