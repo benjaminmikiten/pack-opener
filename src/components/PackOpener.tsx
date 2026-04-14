@@ -436,7 +436,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                   className="flex flex-col items-center gap-5"
                 >
                   <div className="text-3xl font-extrabold text-white">Pack Complete! 🎉</div>
-                  <div className="flex gap-4">
+                  <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -451,7 +451,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                     </motion.button>
                     <Link
                       href="/collection"
-                      className="rounded-xl border px-8 py-3 font-bold text-white transition-colors hover:bg-white/10"
+                      className="rounded-xl border px-8 py-3 text-center font-bold text-white transition-colors hover:bg-white/10"
                       style={{ borderColor: setInfo.accent }}
                     >
                       View Collection
