@@ -6,9 +6,10 @@ const STORAGE_KEY = 'pack-opener-settings'
 
 interface Settings {
   economyEnabled: boolean
+  animationsEnabled: boolean
 }
 
-const DEFAULT: Settings = { economyEnabled: true }
+const DEFAULT: Settings = { economyEnabled: true, animationsEnabled: true }
 
 let lastRaw: string | null = undefined as unknown as null
 let cachedSettings: Settings = { ...DEFAULT }
@@ -23,7 +24,7 @@ function getSnapshot(): Settings {
   if (raw === lastRaw) return cachedSettings
   lastRaw = raw
   try {
-    cachedSettings = raw ? (JSON.parse(raw) as Settings) : { ...DEFAULT }
+    cachedSettings = raw ? { ...DEFAULT, ...(JSON.parse(raw) as Partial<Settings>) } : { ...DEFAULT }
   } catch {
     cachedSettings = { ...DEFAULT }
   }
@@ -64,8 +65,15 @@ export function useSettings() {
     notify()
   }, [])
 
+  const setAnimationsEnabled = useCallback((enabled: boolean) => {
+    writeSettings({ ...getSnapshot(), animationsEnabled: enabled })
+    notify()
+  }, [])
+
   return {
     economyEnabled: settings.economyEnabled,
+    animationsEnabled: settings.animationsEnabled,
     setEconomyEnabled,
+    setAnimationsEnabled,
   }
 }

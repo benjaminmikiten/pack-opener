@@ -23,7 +23,7 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 export default function NavBar() {
-  const { economyEnabled, setEconomyEnabled } = useSettings()
+  const { economyEnabled, setEconomyEnabled, animationsEnabled, setAnimationsEnabled } = useSettings()
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   return (
@@ -95,14 +95,25 @@ export default function NavBar() {
                 </button>
               </div>
 
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-medium text-white">Economy Mode</div>
-                  <div className="mt-0.5 text-xs text-gray-500">
-                    Packs cost money. Earn points by flipping cards.
+              <div className="flex flex-col gap-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-white">Economy Mode</div>
+                    <div className="mt-0.5 text-xs text-gray-500">
+                      Packs cost money. Earn points by flipping cards.
+                    </div>
                   </div>
+                  <Toggle enabled={economyEnabled} onChange={setEconomyEnabled} />
                 </div>
-                <Toggle enabled={economyEnabled} onChange={setEconomyEnabled} />
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-white">Animations</div>
+                    <div className="mt-0.5 text-xs text-gray-500">
+                      Card flips, transitions, and motion effects.
+                    </div>
+                  </div>
+                  <Toggle enabled={animationsEnabled} onChange={setAnimationsEnabled} />
+                </div>
               </div>
             </motion.div>
           </>

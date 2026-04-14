@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist } from 'next/font/google'
 import './globals.css'
 import NavBar from '@/components/NavBar'
+import AnimationProvider from '@/components/AnimationProvider'
 
 const geist = Geist({
   variable: '--font-geist',
@@ -21,8 +22,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col bg-gray-950 text-white">
-        <NavBar />
-        <main className="flex-1">{children}</main>
+        <AnimationProvider>
+          <NavBar />
+          <main className="flex-1">{children}</main>
+        </AnimationProvider>
       </body>
     </html>
   )
