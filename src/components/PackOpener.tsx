@@ -509,7 +509,7 @@ export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: Pack
                   className="flex flex-col items-center gap-5"
                 >
                   <div className="text-3xl font-extrabold text-white">Pack Complete! 🎉</div>
-                  <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
+                  <div className="flex w-full flex-col items-stretch gap-3">
                     {(() => {
                       const canAfford = !economyEnabled || balance >= setInfo.price
                       return (
