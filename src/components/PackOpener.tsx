@@ -132,7 +132,7 @@ function SpotlightFront({ card, setInfo }: { card: PokemonCard; setInfo: SetInfo
 }
 
 export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: PackOpenerProps) {
-  const { balance, points, deductPackCost } = useEconomy()
+  const { balance, points, redeemableAmount, deductPackCost, redeemPoints } = useEconomy()
   const { economyEnabled } = useSettings()
   const [phase, setPhase] = useState<Phase>('ready')
   const [cards, setCards] = useState<PokemonCard[]>([])
@@ -162,6 +162,23 @@ export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: Pack
       setPhase('ready')
     }
   }, [setId])
+
+  const openAllAtOnce = useCallback(async () => {
+    setPhase('loading')
+    setError(null)
+    try {
+      const pack = await generatePack(setId)
+      // Award a point for each card as if they were all flipped
+      pack.forEach(() => onFlip?.())
+      setCards(pack)
+      setRevealedCards(pack)
+      setPhase('done')
+      onPackOpened({ cards: pack, setId, openedAt: new Date().toISOString() })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to open pack')
+      setPhase('ready')
+    }
+  }, [setId, onFlip, onPackOpened])
 
   const handleCardClick = useCallback(() => {
     if (isTransitioning) return
@@ -314,18 +331,28 @@ export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: Pack
               <div className="mt-3 text-xs text-gray-400">Booster Pack</div>
             </motion.div>
 
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={openPack}
-              className="rounded-2xl px-10 py-4 text-xl font-bold text-black shadow-lg"
-              style={{
-                background: `linear-gradient(135deg, ${setInfo.accent}, ${setInfo.accent}bb)`,
-                boxShadow: `0 0 20px ${setInfo.accent}88`,
-              }}
-            >
-              Open Pack!
-            </motion.button>
+            <div className="flex flex-col items-center gap-3">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={openPack}
+                className="rounded-2xl px-10 py-4 text-xl font-bold text-black shadow-lg"
+                style={{
+                  background: `linear-gradient(135deg, ${setInfo.accent}, ${setInfo.accent}bb)`,
+                  boxShadow: `0 0 20px ${setInfo.accent}88`,
+                }}
+              >
+                Open Pack!
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={openAllAtOnce}
+                className="rounded-xl px-6 py-2 text-sm text-gray-500 transition-colors hover:text-gray-300"
+              >
+                rip it open →
+              </motion.button>
+            </div>
           </motion.div>
         )}
 
@@ -483,18 +510,52 @@ export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: Pack
                 >
                   <div className="text-3xl font-extrabold text-white">Pack Complete! 🎉</div>
                   <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:justify-center">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      onClick={reset}
-                      className="rounded-xl px-8 py-3 font-bold text-black"
-                      style={{
-                        background: `linear-gradient(135deg, ${setInfo.accent}, ${setInfo.accent}bb)`,
-                        boxShadow: `0 0 16px ${setInfo.accent}66`,
-                      }}
-                    >
-                      Open Another Pack
-                    </motion.button>
+                    {(() => {
+                      const canAfford = !economyEnabled || balance >= setInfo.price
+                      return (
+                        <div className="flex flex-col items-stretch gap-2">
+                          <motion.button
+                            whileHover={canAfford ? { scale: 1.05 } : {}}
+                            whileTap={canAfford ? { scale: 0.95 } : {}}
+                            onClick={canAfford ? reset : undefined}
+                            className="rounded-xl px-8 py-3 font-bold text-black transition-opacity"
+                            style={{
+                              background: canAfford
+                                ? `linear-gradient(135deg, ${setInfo.accent}, ${setInfo.accent}bb)`
+                                : '#374151',
+                              boxShadow: canAfford ? `0 0 16px ${setInfo.accent}66` : 'none',
+                              color: canAfford ? 'black' : '#6b7280',
+                              cursor: canAfford ? 'pointer' : 'not-allowed',
+                            }}
+                          >
+                            Open Another Pack
+                            {economyEnabled && !canAfford && (
+                              <span className="ml-2 text-xs font-normal opacity-70">
+                                (need ${setInfo.price.toFixed(2)})
+                              </span>
+                            )}
+                          </motion.button>
+                          <AnimatePresence>
+                            {economyEnabled && !canAfford && redeemableAmount > 0 && (
+                              <motion.button
+                                key="redeem-done"
+                                initial={{ opacity: 0, y: -4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, y: -4 }}
+                                transition={{ duration: 0.15 }}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                onClick={redeemPoints}
+                                className="rounded-xl px-8 py-2 text-sm font-bold text-black"
+                                style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)' }}
+                              >
+                                Redeem +${redeemableAmount.toFixed(2)} to unlock
+                              </motion.button>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      )
+                    })()}
                     <Link
                       href="/collection"
                       className="rounded-xl border px-8 py-3 text-center font-bold text-white transition-colors hover:bg-white/10"
