@@ -108,34 +108,6 @@ function SpotlightFront({ card, setInfo }: { card: PokemonCard; setInfo: SetInfo
         />
       )}
 
-      {/* Badges */}
-      {isHolo && (
-        <motion.div
-          className="absolute -top-4 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-white"
-          animate={{
-            background: [
-              'linear-gradient(90deg,rgba(168,85,247,.9),rgba(59,130,246,.9))',
-              'linear-gradient(90deg,rgba(59,130,246,.9),rgba(236,72,153,.9))',
-              'linear-gradient(90deg,rgba(236,72,153,.9),rgba(168,85,247,.9))',
-            ],
-          }}
-          transition={{ duration: 2.4, repeat: Infinity }}
-        >
-          ✨ HOLO RARE
-        </motion.div>
-      )}
-      {isRare && (
-        <div
-          className="absolute -top-4 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold text-white"
-          style={{
-            background: 'linear-gradient(90deg,rgba(180,130,0,.9),rgba(255,215,0,.9))',
-            boxShadow: '0 0 10px rgba(255,215,0,.7)',
-          }}
-        >
-          ⭐ RARE
-        </div>
-      )}
-
       {!loaded && <div className="absolute inset-0 animate-pulse rounded-2xl bg-gray-700" />}
 
       <Image
@@ -402,6 +374,46 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                         <SpotlightFront card={currentCard} setInfo={setInfo} />
                       </div>
                     </motion.div>
+
+                    {/* Rarity badge — shown once flipped, lives outside the card */}
+                    <AnimatePresence>
+                      {isFlipped && currentCard.slot === 'holo' && (
+                        <motion.div
+                          key="holo-badge"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                            background: [
+                              'linear-gradient(90deg,rgba(168,85,247,.9),rgba(59,130,246,.9))',
+                              'linear-gradient(90deg,rgba(59,130,246,.9),rgba(236,72,153,.9))',
+                              'linear-gradient(90deg,rgba(236,72,153,.9),rgba(168,85,247,.9))',
+                            ],
+                          }}
+                          exit={{ opacity: 0, y: 6 }}
+                          transition={{ opacity: { duration: 0.25 }, y: { duration: 0.25 }, background: { duration: 2.4, repeat: Infinity } }}
+                          className="rounded-full px-4 py-1.5 text-xs font-bold text-white"
+                        >
+                          ✨ HOLO RARE
+                        </motion.div>
+                      )}
+                      {isFlipped && currentCard.slot === 'rare' && (
+                        <motion.div
+                          key="rare-badge"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 6 }}
+                          transition={{ duration: 0.25 }}
+                          className="rounded-full px-4 py-1.5 text-xs font-bold text-white"
+                          style={{
+                            background: 'linear-gradient(90deg,rgba(180,130,0,.9),rgba(255,215,0,.9))',
+                            boxShadow: '0 0 10px rgba(255,215,0,.7)',
+                          }}
+                        >
+                          ⭐ RARE
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
 
                     {/* Pill below the card */}
                     <motion.span
