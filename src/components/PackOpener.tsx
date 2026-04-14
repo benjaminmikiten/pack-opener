@@ -132,7 +132,7 @@ function SpotlightFront({ card, setInfo }: { card: PokemonCard; setInfo: SetInfo
 }
 
 export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: PackOpenerProps) {
-  const { balance, points } = useEconomy()
+  const { balance, points, deductPackCost } = useEconomy()
   const { economyEnabled } = useSettings()
   const [phase, setPhase] = useState<Phase>('ready')
   const [cards, setCards] = useState<PokemonCard[]>([])
@@ -191,13 +191,20 @@ export default function PackOpener({ setId, onBack, onPackOpened, onFlip }: Pack
   }, [isTransitioning, cards, currentIndex, setId, onPackOpened])
 
   const reset = useCallback(() => {
+    if (economyEnabled) {
+      const ok = deductPackCost(setInfo.price)
+      if (!ok) {
+        onBack()
+        return
+      }
+    }
     setCards([])
     setCurrentIndex(0)
     setRevealedCards([])
     setIsFlipped(false)
     setIsTransitioning(false)
     setPhase('ready')
-  }, [])
+  }, [economyEnabled, deductPackCost, setInfo.price, onBack])
 
   return (
     <div
