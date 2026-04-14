@@ -370,7 +370,11 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                         rotateZ: isFlipped ? [0, -4, 0] : 0,
                         y: isFlipped ? [0, -18, 0] : 0,
                       }}
-                      transition={{ duration: 0.7, type: 'spring', stiffness: 70, damping: 13 }}
+                      transition={{
+                        rotateY: { duration: 0.7, type: 'spring', stiffness: 70, damping: 13 },
+                        rotateZ: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
+                        y: { duration: 0.7, ease: [0.4, 0, 0.2, 1] },
+                      }}
                     >
                       {/* Back face */}
                       <div
