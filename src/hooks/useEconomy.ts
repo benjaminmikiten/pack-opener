@@ -4,8 +4,9 @@ import { useCallback, useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'pack-opener-economy'
 const STARTING_BALANCE = 10.0
-// 10 points = $1.00. A full pack (11 cards flipped) earns $1.10 back.
-const POINTS_PER_DOLLAR = 10
+// 10 points = $3.00. A full pack (11 flips) earns $3.30 back, covering any pack price.
+const POINTS_PER_REDEMPTION = 10
+const DOLLARS_PER_REDEMPTION = 3.0
 
 interface Wallet {
   balance: number
@@ -78,19 +79,21 @@ export function useEconomy() {
 
   const redeemPoints = useCallback(() => {
     const current = getSnapshot()
-    const dollars = Math.floor(current.points / POINTS_PER_DOLLAR)
-    if (dollars === 0) return
+    const blocks = Math.floor(current.points / POINTS_PER_REDEMPTION)
+    if (blocks === 0) return
     writeWallet({
-      balance: parseFloat((current.balance + dollars).toFixed(2)),
-      points: current.points - dollars * POINTS_PER_DOLLAR,
+      balance: parseFloat((current.balance + blocks * DOLLARS_PER_REDEMPTION).toFixed(2)),
+      points: current.points - blocks * POINTS_PER_REDEMPTION,
     })
     notify()
   }, [])
 
+  const redeemableBlocks = Math.floor(wallet.points / POINTS_PER_REDEMPTION)
+
   return {
     balance: wallet.balance,
     points: wallet.points,
-    redeemableAmount: Math.floor(wallet.points / POINTS_PER_DOLLAR),
+    redeemableAmount: redeemableBlocks * DOLLARS_PER_REDEMPTION,
     hydrated: wallet !== SERVER_SNAPSHOT,
     deductPackCost,
     earnPoint,

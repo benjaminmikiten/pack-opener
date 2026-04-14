@@ -168,7 +168,7 @@ export default function SetSelector({
                     className="rounded-full px-3 py-1 text-xs font-bold text-black"
                     style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)' }}
                   >
-                    Redeem +${redeemableAmount}.00
+                    Redeem +${redeemableAmount.toFixed(2)}
                   </motion.button>
                 )}
               </AnimatePresence>
@@ -177,7 +177,7 @@ export default function SetSelector({
         </AnimatePresence>
         {showEconomy && redeemableAmount === 0 && points > 0 && (
           <p className="mt-2 text-xs text-gray-600">
-            {10 - (points % 10)} more flips to redeem $1
+            {10 - (points % 10)} more {10 - (points % 10) === 1 ? 'flip' : 'flips'} to redeem $3
           </p>
         )}
       </motion.div>
