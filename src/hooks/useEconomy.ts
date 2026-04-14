@@ -90,6 +90,11 @@ export function useEconomy() {
 
   const redeemableBlocks = Math.floor(wallet.points / POINTS_PER_REDEMPTION)
 
+  const resetEconomy = useCallback(() => {
+    writeWallet({ balance: STARTING_BALANCE, points: 0 })
+    notify()
+  }, [])
+
   return {
     balance: wallet.balance,
     points: wallet.points,
@@ -98,5 +103,6 @@ export function useEconomy() {
     deductPackCost,
     earnPoint,
     redeemPoints,
+    resetEconomy,
   }
 }
