@@ -60,15 +60,15 @@ describe('collection', () => {
   })
 
   describe('getCollection', () => {
-    it('returns empty array when localStorage is empty', () => {
+    it('returns empty object when localStorage is empty', () => {
       const result = getCollection()
-      expect(result).toEqual([])
+      expect(result).toEqual({})
     })
 
-    it('returns empty array when localStorage has invalid JSON', () => {
+    it('returns empty object when localStorage has invalid JSON', () => {
       localStorageMock.getItem.mockReturnValueOnce('not-valid-json')
       const result = getCollection()
-      expect(result).toEqual([])
+      expect(result).toEqual({})
     })
   })
 
@@ -84,39 +84,43 @@ describe('collection', () => {
       // Simulate what getCollection reads back
       const storedValue = localStorageMock.setItem.mock.calls[0][1] as string
       localStorageMock.getItem.mockReturnValueOnce(storedValue)
+      // second call is for VERSION_KEY
+      localStorageMock.getItem.mockReturnValueOnce('2')
 
       const result = getCollection()
-      expect(result).toHaveLength(mockPack.cards.length)
-      expect(result[0].card.id).toBe('energy-1')
-      expect(result[0].setId).toBe('base1')
-      expect(result[0].openedAt).toBe(mockPack.openedAt)
+      expect(Object.keys(result)).toHaveLength(mockPack.cards.length)
+      expect(result['energy-1'].card.id).toBe('energy-1')
+      expect(result['energy-1'].setId).toBe('base1')
+      expect(result['energy-1'].firstOpenedAt).toBe(mockPack.openedAt)
     })
 
-    it('appends to existing collection', () => {
-      // First pack
+    it('increments count when same card added again', () => {
       addPackToCollection(mockPack)
       const firstStored = localStorageMock.setItem.mock.calls[0][1] as string
       localStorageMock.getItem.mockReturnValue(firstStored)
 
-      // Second pack
       const secondPack: PackResult = { ...mockPack, cards: [mockPack.cards[0]] }
       addPackToCollection(secondPack)
 
-      const secondStored = localStorageMock.setItem.mock.calls[1][1] as string
+      const secondStored = localStorageMock.setItem.mock.calls[2][1] as string
       localStorageMock.getItem.mockReturnValueOnce(secondStored)
+      localStorageMock.getItem.mockReturnValueOnce('2')
 
       const result = getCollection()
-      expect(result).toHaveLength(mockPack.cards.length + 1)
+      // Still 2 unique cards, but energy-1 count is 2
+      expect(Object.keys(result)).toHaveLength(mockPack.cards.length)
+      expect(result['energy-1'].count).toBe(2)
     })
 
     it('stores correct setId for each entry', () => {
       addPackToCollection(mockPack)
       const stored = localStorageMock.setItem.mock.calls[0][1] as string
       localStorageMock.getItem.mockReturnValueOnce(stored)
+      localStorageMock.getItem.mockReturnValueOnce('2')
 
       const result = getCollection()
-      result.forEach((entry) => {
-        expect(entry.setId).toBe('base1')
+      Object.values(result).forEach((record) => {
+        expect(record.setId).toBe('base1')
       })
     })
   })
@@ -135,7 +139,7 @@ describe('collection', () => {
       // After remove, getItem returns null
       localStorageMock.getItem.mockReturnValueOnce(null)
       const result = getCollection()
-      expect(result).toEqual([])
+      expect(result).toEqual({})
     })
   })
 })
