@@ -25,8 +25,10 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 
 export default function NavBar() {
   const { economyEnabled, setEconomyEnabled, animationsEnabled, setAnimationsEnabled } = useSettings()
-  const { resetEconomy } = useEconomy()
+  const { balance, hydrated, resetEconomy } = useEconomy()
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const showBalance = economyEnabled && hydrated
 
   return (
     <>
@@ -39,6 +41,22 @@ export default function NavBar() {
           >
             ⚡ Pack Opener
           </Link>
+
+          {/* Center: balance */}
+          <AnimatePresence>
+            {showBalance && (
+              <motion.div
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2 }}
+                className="rounded-xl px-3 py-1.5 text-sm font-bold text-white"
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                💰 ${balance.toFixed(2)}
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Right: nav links + settings */}
           <div className="flex items-center gap-4">
@@ -102,7 +120,7 @@ export default function NavBar() {
                   <div>
                     <div className="text-sm font-medium text-white">Economy Mode</div>
                     <div className="mt-0.5 text-xs text-gray-500">
-                      Packs cost money. Earn points by flipping cards.
+                      Packs cost money. Sell cards to earn money back.
                     </div>
                   </div>
                   <Toggle enabled={economyEnabled} onChange={setEconomyEnabled} />
@@ -121,7 +139,7 @@ export default function NavBar() {
                   <div className="mb-2">
                     <div className="text-sm font-medium text-white">Reset Economy</div>
                     <div className="mt-0.5 text-xs text-gray-500">
-                      Restore balance to $10.00 and clear points.
+                      Restore balance to $10.00.
                     </div>
                   </div>
                   <button

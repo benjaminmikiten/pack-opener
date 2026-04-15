@@ -8,7 +8,7 @@ export async function fetchSetCards(setId: SetId): Promise<PokemonCard[]> {
     return cardCache.get(setId)!
   }
 
-  const url = `${API_BASE}/cards?q=set.id:${setId}&pageSize=250&select=id,name,rarity,supertype,subtypes,images`
+  const url = `${API_BASE}/cards?q=set.id:${setId}&pageSize=250&select=id,name,rarity,supertype,subtypes,images,tcgplayer`
   const response = await fetch(url)
 
   if (!response.ok) {

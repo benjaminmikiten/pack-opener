@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CollectionEntry, PokemonCard, SetId } from '@/types'
+import { CollectionRecord, CollectionStore, SetId, getMarketPrice } from '@/types'
 import { SETS } from '@/lib/sets'
 import Card from './Card'
 import CardModal from './CardModal'
 import Link from 'next/link'
 
 interface CollectionViewProps {
-  collection: CollectionEntry[]
+  collection: CollectionStore
+  onSell: (ids: string[]) => void
   onClear: () => void
 }
 
-type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'rarity'
+type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'rarity' | 'price-high' | 'price-low'
 type RarityFilter = 'all' | 'energy' | 'common' | 'uncommon' | 'rare' | 'holo'
 
 const RARITY_ORDER: Record<string, number> = {
@@ -33,51 +34,93 @@ const RARITY_LABELS: Record<RarityFilter, string> = {
   holo: 'Holo Rare',
 }
 
-export default function CollectionView({ collection, onClear }: CollectionViewProps) {
-  const [zoomedCard, setZoomedCard] = useState<PokemonCard | null>(null)
+export default function CollectionView({ collection, onSell, onClear }: CollectionViewProps) {
+  const [zoomedCard, setZoomedCard] = useState<CollectionRecord | null>(null)
   const [setFilter, setSetFilter] = useState<SetId | 'all'>('all')
   const [rarityFilter, setRarityFilter] = useState<RarityFilter>('all')
   const [sort, setSort] = useState<SortKey>('newest')
   const [search, setSearch] = useState('')
+  const [sellMode, setSellMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [confirmOpen, setConfirmOpen] = useState(false)
+
+  const records = useMemo(() => Object.values(collection), [collection])
+  const totalCards = useMemo(() => records.reduce((sum, r) => sum + r.count, 0), [records])
+  const totalUnique = records.length
 
   const filtered = useMemo(() => {
-    let entries = [...collection]
+    let entries = [...records]
 
-    // Set filter
     if (setFilter !== 'all') {
-      entries = entries.filter((e) => e.setId === setFilter)
+      entries = entries.filter((r) => r.setId === setFilter)
     }
 
-    // Rarity filter
     if (rarityFilter !== 'all') {
-      entries = entries.filter((e) => e.card.slot === rarityFilter)
+      entries = entries.filter((r) => r.card.slot === rarityFilter)
     }
 
-    // Search
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      entries = entries.filter((e) => e.card.name.toLowerCase().includes(q))
+      entries = entries.filter((r) => r.card.name.toLowerCase().includes(q))
     }
 
-    // Sort
     entries.sort((a, b) => {
       switch (sort) {
-        case 'newest': return new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime()
-        case 'oldest': return new Date(a.openedAt).getTime() - new Date(b.openedAt).getTime()
+        case 'newest': return new Date(b.lastOpenedAt).getTime() - new Date(a.lastOpenedAt).getTime()
+        case 'oldest': return new Date(a.firstOpenedAt).getTime() - new Date(b.firstOpenedAt).getTime()
         case 'name-az': return a.card.name.localeCompare(b.card.name)
         case 'name-za': return b.card.name.localeCompare(a.card.name)
         case 'rarity': return (RARITY_ORDER[b.card.slot ?? ''] ?? 0) - (RARITY_ORDER[a.card.slot ?? ''] ?? 0)
+        case 'price-high': return (getMarketPrice(b.card) ?? 0) - (getMarketPrice(a.card) ?? 0)
+        case 'price-low': return (getMarketPrice(a.card) ?? 0) - (getMarketPrice(b.card) ?? 0)
         default: return 0
       }
     })
 
     return entries
-  }, [collection, setFilter, rarityFilter, sort, search])
+  }, [records, setFilter, rarityFilter, sort, search])
 
-  const totalCards = collection.length
+  const toggleCard = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const selectAllFiltered = () => {
+    setSelected(new Set(filtered.map((r) => r.card.id)))
+  }
+
+  const deselectAll = () => setSelected(new Set())
+
+  const exitSellMode = () => {
+    setSellMode(false)
+    setSelected(new Set())
+  }
+
+  const selectedRecords = useMemo(
+    () => records.filter((r) => selected.has(r.card.id)),
+    [records, selected]
+  )
+
+  const sellTotal = useMemo(
+    () => selectedRecords.reduce((sum, r) => sum + (getMarketPrice(r.card) ?? 0) * r.count, 0),
+    [selectedRecords]
+  )
+
+  const handleConfirmSell = () => {
+    onSell(Array.from(selected))
+    setConfirmOpen(false)
+    exitSellMode()
+  }
 
   return (
-    <div className="min-h-screen bg-gray-950 px-4 py-8">
+    <div
+      className="min-h-screen bg-gray-950 px-4 py-8"
+      style={sellMode ? { outline: '3px solid #fbbf24', outlineOffset: '-3px' } : undefined}
+    >
       {/* Header */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <Link
@@ -88,16 +131,37 @@ export default function CollectionView({ collection, onClear }: CollectionViewPr
         </Link>
         <h1 className="text-3xl font-extrabold text-white">My Collection</h1>
         <div className="flex items-center gap-3">
-          <span className="text-sm text-gray-400">{totalCards} cards</span>
+          <span className="text-sm text-gray-400">
+            {totalUnique} unique · {totalCards} total
+          </span>
           {totalCards > 0 && (
-            <button
-              onClick={() => {
-                if (confirm('Clear your entire collection? This cannot be undone.')) onClear()
-              }}
-              className="rounded-lg bg-red-900/60 px-4 py-2 text-sm text-red-300 transition-colors hover:bg-red-800/60"
-            >
-              Clear
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  if (sellMode) {
+                    exitSellMode()
+                  } else {
+                    setSellMode(true)
+                  }
+                }}
+                className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+                style={
+                  sellMode
+                    ? { background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.4)' }
+                    : { background: 'rgba(255,255,255,0.07)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.1)' }
+                }
+              >
+                {sellMode ? 'Done Selling' : 'Sell Cards'}
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Clear your entire collection? This cannot be undone.')) onClear()
+                }}
+                className="rounded-lg bg-red-900/60 px-4 py-2 text-sm text-red-300 transition-colors hover:bg-red-800/60"
+              >
+                Clear
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -165,12 +229,14 @@ export default function CollectionView({ collection, onClear }: CollectionViewPr
               <option value="name-az">Name A→Z</option>
               <option value="name-za">Name Z→A</option>
               <option value="rarity">Rarity (High→Low)</option>
+              <option value="price-high">Price (High→Low)</option>
+              <option value="price-low">Price (Low→High)</option>
             </select>
 
             {/* Result count */}
-            {filtered.length !== totalCards && (
+            {filtered.length !== totalUnique && (
               <span className="text-sm text-gray-500">
-                {filtered.length} of {totalCards}
+                {filtered.length} of {totalUnique}
               </span>
             )}
 
@@ -182,6 +248,28 @@ export default function CollectionView({ collection, onClear }: CollectionViewPr
               >
                 Reset
               </button>
+            )}
+
+            {/* Sell mode selection controls */}
+            {sellMode && (
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={selectAllFiltered}
+                  className="rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-400/10"
+                  style={{ border: '1px solid rgba(251,191,36,0.3)' }}
+                >
+                  Select All ({filtered.length})
+                </button>
+                {selected.size > 0 && (
+                  <button
+                    onClick={deselectAll}
+                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-400 transition-colors hover:bg-white/10 hover:text-gray-200"
+                    style={{ border: '1px solid rgba(255,255,255,0.1)' }}
+                  >
+                    Deselect All
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
@@ -200,11 +288,11 @@ export default function CollectionView({ collection, onClear }: CollectionViewPr
             ) : (
               <motion.div
                 key="grid"
-                className="flex flex-wrap gap-4"
+                className={`flex flex-wrap gap-4 ${sellMode ? 'pb-32' : ''}`}
               >
-                {filtered.map((entry, i) => (
+                {filtered.map((record, i) => (
                   <motion.div
-                    key={`${entry.card.id}-${entry.openedAt}`}
+                    key={record.card.id}
                     layout
                     initial={{ opacity: 0, scale: 0.85 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -212,10 +300,19 @@ export default function CollectionView({ collection, onClear }: CollectionViewPr
                     transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.3) }}
                   >
                     <Card
-                      card={entry.card}
+                      card={record.card}
                       revealed={true}
                       compact={true}
-                      onClick={() => setZoomedCard(entry.card)}
+                      selected={sellMode && selected.has(record.card.id)}
+                      count={record.count}
+                      price={getMarketPrice(record.card)}
+                      onClick={() => {
+                        if (sellMode) {
+                          toggleCard(record.card.id)
+                        } else {
+                          setZoomedCard(record)
+                        }
+                      }}
                     />
                   </motion.div>
                 ))}
@@ -225,7 +322,97 @@ export default function CollectionView({ collection, onClear }: CollectionViewPr
         </>
       )}
 
-      {zoomedCard && <CardModal card={zoomedCard} onClose={() => setZoomedCard(null)} />}
+      {/* Card modal (not shown in sell mode) */}
+      {!sellMode && zoomedCard && (
+        <CardModal card={zoomedCard.card} onClose={() => setZoomedCard(null)} />
+      )}
+
+      {/* Sticky sell footer */}
+      <AnimatePresence>
+        {sellMode && (
+          <motion.div
+            key="sell-footer"
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+            className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-between gap-4 border-t border-amber-400/20 px-6 py-4"
+            style={{ background: 'rgba(10,10,15,0.95)', backdropFilter: 'blur(16px)' }}
+          >
+            <div className="text-sm text-gray-400">
+              {selected.size === 0 ? (
+                <span>Select cards to sell</span>
+              ) : (
+                <span>
+                  <span className="font-bold text-white">{selected.size}</span> card{selected.size !== 1 ? 's' : ''} selected
+                  {sellTotal > 0 && (
+                    <span className="ml-2 font-semibold text-amber-400">· ${sellTotal.toFixed(2)}</span>
+                  )}
+                </span>
+              )}
+            </div>
+            <button
+              disabled={selected.size === 0}
+              onClick={() => setConfirmOpen(true)}
+              className="rounded-xl px-6 py-2.5 text-sm font-bold transition-all"
+              style={
+                selected.size > 0
+                  ? { background: '#fbbf24', color: '#000' }
+                  : { background: 'rgba(255,255,255,0.08)', color: '#555', cursor: 'not-allowed' }
+              }
+            >
+              Sell{selected.size > 0 && sellTotal > 0 ? ` for $${sellTotal.toFixed(2)}` : ''}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirm sell modal */}
+      <AnimatePresence>
+        {confirmOpen && (
+          <motion.div
+            key="confirm-backdrop"
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}
+            onClick={() => setConfirmOpen(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-sm rounded-2xl border border-white/10 p-6 shadow-2xl"
+              style={{ background: '#111827' }}
+            >
+              <h2 className="mb-1 text-lg font-bold text-white">Confirm Sale</h2>
+              <p className="mb-6 text-sm text-gray-400">
+                Sell {selected.size} card{selected.size !== 1 ? 's' : ''} for{' '}
+                <span className="font-semibold text-amber-400">${sellTotal.toFixed(2)}</span>?
+                {' '}This cannot be undone.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setConfirmOpen(false)}
+                  className="flex-1 rounded-xl border border-white/10 py-2.5 text-sm font-semibold text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmSell}
+                  className="flex-1 rounded-xl py-2.5 text-sm font-bold transition-colors"
+                  style={{ background: '#fbbf24', color: '#000' }}
+                >
+                  Sell for ${sellTotal.toFixed(2)}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

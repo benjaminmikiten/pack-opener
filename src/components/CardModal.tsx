@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion'
-import { PokemonCard } from '@/types'
+import { PokemonCard, getMarketPrice } from '@/types'
 
 interface CardModalProps {
   card: PokemonCard | null
@@ -171,6 +171,11 @@ export default function CardModal({ card, onClose }: CardModalProps) {
           <div className="text-center">
             <p className="text-xl font-bold text-white">{card.name}</p>
             <p className="mt-1 text-sm text-gray-400 capitalize">{card.slot}</p>
+            {getMarketPrice(card) !== undefined && (
+              <p className="mt-1 text-sm font-semibold text-yellow-400">
+                ${getMarketPrice(card)!.toFixed(2)} <span className="text-xs font-normal text-gray-500">market</span>
+              </p>
+            )}
           </div>
 
           <button

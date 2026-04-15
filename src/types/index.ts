@@ -13,6 +13,20 @@ export interface PokemonCard {
     large: string
   }
   slot?: CardSlot
+  tcgplayer?: {
+    prices?: {
+      normal?: { market?: number }
+      holofoil?: { market?: number }
+    }
+  }
+}
+
+/** Returns the TCGPlayer market price for a card, preferring holofoil over normal. */
+export function getMarketPrice(card: PokemonCard): number | undefined {
+  const prices = card.tcgplayer?.prices
+  if (!prices) return undefined
+  const val = prices.holofoil?.market ?? prices.normal?.market
+  return typeof val === 'number' ? val : undefined
 }
 
 export interface SetInfo {
@@ -24,6 +38,17 @@ export interface SetInfo {
   price: number
 }
 
+export interface CollectionRecord {
+  card: PokemonCard
+  setId: SetId
+  count: number
+  firstOpenedAt: string
+  lastOpenedAt: string
+}
+
+export type CollectionStore = Record<string, CollectionRecord>
+
+/** @deprecated Use CollectionRecord + CollectionStore. Kept for v1→v2 migration. */
 export interface CollectionEntry {
   card: PokemonCard
   setId: SetId

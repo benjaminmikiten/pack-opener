@@ -11,9 +11,12 @@ interface CardProps {
   revealed?: boolean
   compact?: boolean
   onClick?: () => void
+  selected?: boolean
+  count?: number
+  price?: number
 }
 
-export default function Card({ card, revealDelay = 0, revealed = true, compact = false, onClick }: CardProps) {
+export default function Card({ card, revealDelay = 0, revealed = true, compact = false, onClick, selected = false, count, price }: CardProps) {
   const [imageLoaded, setImageLoaded] = useState(false)
   const [isFlipped, setIsFlipped] = useState(false)
 
@@ -34,7 +37,7 @@ export default function Card({ card, revealDelay = 0, revealed = true, compact =
   return (
     <motion.div
       className={`relative ${cardSizeClass} ${onClick ? 'cursor-pointer' : ''}`}
-      style={{ perspective: '1000px' }}
+      style={{ perspective: '1000px', outline: selected ? '2px solid #fbbf24' : 'none', borderRadius: 8 }}
       onClick={onClick}
       initial={revealed ? { rotateY: 180, opacity: 0, y: 20 } : {}}
       animate={
@@ -144,6 +147,38 @@ export default function Card({ card, revealDelay = 0, revealed = true, compact =
           }}
         >
           ⭐ RARE
+        </div>
+      )}
+
+      {/* Count badge — shown when player has more than one copy */}
+      {count !== undefined && count > 1 && (
+        <div
+          className="absolute bottom-1 right-1 rounded-full px-1.5 py-0.5 text-xs font-bold text-white"
+          style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', fontSize: 10 }}
+        >
+          ×{count}
+        </div>
+      )}
+
+      {/* Market price — shown in compact mode when price data is available */}
+      {compact && price !== undefined && (
+        <div className="mt-1 text-center text-xs text-gray-500">
+          ${price.toFixed(2)}
+        </div>
+      )}
+
+      {/* Selected checkmark overlay */}
+      {selected && (
+        <div
+          className="absolute inset-0 flex items-center justify-center rounded-lg"
+          style={{ background: 'rgba(251,191,36,0.25)' }}
+        >
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white"
+            style={{ background: '#fbbf24' }}
+          >
+            ✓
+          </div>
         </div>
       )}
     </motion.div>

@@ -8,9 +8,6 @@ import { SETS } from '@/lib/sets'
 interface SetSelectorProps {
   onSelectSet: (setId: SetId) => void
   balance: number
-  points: number
-  redeemableAmount: number
-  onRedeem: () => void
   hydrated: boolean
   economyEnabled: boolean
 }
@@ -47,7 +44,6 @@ function SetCard({
         cursor: canAfford ? 'pointer' : 'not-allowed',
       }}
     >
-      {/* Hover glow */}
       {canAfford && (
         <motion.div
           className="pointer-events-none absolute inset-0 rounded-2xl opacity-0"
@@ -56,7 +52,6 @@ function SetCard({
         />
       )}
 
-      {/* Set logo */}
       <div className="mb-3 flex h-20 items-center justify-center">
         <img
           src={set.logoUrl}
@@ -69,12 +64,9 @@ function SetCard({
           }}
           ref={(el) => { if (el?.complete && el.naturalWidth > 0) setLogoLoaded(true) }}
           onLoad={() => setLogoLoaded(true)}
-          onError={(e) => {
-            ;(e.target as HTMLImageElement).style.display = 'none'
-          }}
+          onError={(e) => { ;(e.target as HTMLImageElement).style.display = 'none' }}
           draggable={false}
         />
-        {/* Fallback while loading */}
         {!logoLoaded && (
           <div
             className="flex h-14 w-14 items-center justify-center rounded-full border-4 text-2xl"
@@ -100,25 +92,18 @@ function SetCard({
       >
         {set.name}
       </h3>
-      {showPrice && (
+      {showPrice ? (
         <p className="mt-1 text-xs" style={{ color: canAfford ? '#9ca3af' : '#555' }}>
           {canAfford ? `$${set.price.toFixed(2)}` : `Need $${set.price.toFixed(2)}`}
         </p>
+      ) : (
+        <p className="mt-1 text-xs text-gray-400">Click to open a pack</p>
       )}
-      {!showPrice && <p className="mt-1 text-xs text-gray-400">Click to open a pack</p>}
     </motion.button>
   )
 }
 
-export default function SetSelector({
-  onSelectSet,
-  balance,
-  points,
-  redeemableAmount,
-  onRedeem,
-  hydrated,
-  economyEnabled,
-}: SetSelectorProps) {
+export default function SetSelector({ onSelectSet, balance, hydrated, economyEnabled }: SetSelectorProps) {
   const showEconomy = economyEnabled && hydrated
 
   return (
@@ -137,7 +122,6 @@ export default function SetSelector({
         </h1>
         <p className="text-lg text-gray-400">Select a set to open a pack</p>
 
-        {/* Economy bar */}
         <AnimatePresence>
           {showEconomy && (
             <motion.div
@@ -146,40 +130,13 @@ export default function SetSelector({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 8 }}
               transition={{ duration: 0.25 }}
-              className="mt-6 inline-flex items-center gap-4 rounded-2xl px-6 py-3 text-sm"
+              className="mt-6 inline-flex items-center gap-2 rounded-2xl px-6 py-3 text-sm"
               style={{ background: 'rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.1)' }}
             >
-              <span className="font-bold text-white">
-                💰 ${balance.toFixed(2)}
-              </span>
-              <span className="text-gray-400">·</span>
-              <span className="text-yellow-300">
-                ⭐ {points} {points === 1 ? 'pt' : 'pts'}
-              </span>
-              <AnimatePresence>
-                {redeemableAmount > 0 && (
-                  <motion.button
-                    key="redeem"
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.85 }}
-                    transition={{ duration: 0.15 }}
-                    onClick={onRedeem}
-                    className="rounded-full px-3 py-1 text-xs font-bold text-black"
-                    style={{ background: 'linear-gradient(135deg, #FFD700, #FFA500)' }}
-                  >
-                    Redeem +${redeemableAmount.toFixed(2)}
-                  </motion.button>
-                )}
-              </AnimatePresence>
+              <span className="font-bold text-white">💰 ${balance.toFixed(2)}</span>
             </motion.div>
           )}
         </AnimatePresence>
-        {showEconomy && redeemableAmount === 0 && points > 0 && (
-          <p className="mt-2 text-xs text-gray-600">
-            {10 - (points % 10)} more {10 - (points % 10) === 1 ? 'flip' : 'flips'} to redeem $3
-          </p>
-        )}
       </motion.div>
 
       <motion.div

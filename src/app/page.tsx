@@ -12,31 +12,23 @@ import { useSettings } from '@/hooks/useSettings'
 export default function Home() {
   const [selectedSet, setSelectedSet] = useState<SetId | null>(null)
   const { addPack } = useCollection()
-  const economy = useEconomy()
+  const { balance, hydrated, deductPackCost } = useEconomy()
   const { economyEnabled } = useSettings()
 
   const handleSelectSet = useCallback(
     (setId: SetId) => {
       if (economyEnabled) {
-        const price = SET_MAP[setId].price
-        const ok = economy.deductPackCost(price)
+        const ok = deductPackCost(SET_MAP[setId].price)
         if (!ok) return
       }
       setSelectedSet(setId)
     },
-    [economy, economyEnabled]
+    [economyEnabled, deductPackCost]
   )
 
-  const handleBack = useCallback(() => {
-    setSelectedSet(null)
-  }, [])
+  const handleBack = useCallback(() => setSelectedSet(null), [])
 
-  const handlePackOpened = useCallback(
-    (pack: PackResult) => {
-      addPack(pack)
-    },
-    [addPack]
-  )
+  const handlePackOpened = useCallback((pack: PackResult) => addPack(pack), [addPack])
 
   if (selectedSet) {
     return (
@@ -44,7 +36,6 @@ export default function Home() {
         setId={selectedSet}
         onBack={handleBack}
         onPackOpened={handlePackOpened}
-        onFlip={economyEnabled ? economy.earnPoint : undefined}
       />
     )
   }
@@ -52,11 +43,8 @@ export default function Home() {
   return (
     <SetSelector
       onSelectSet={handleSelectSet}
-      balance={economy.balance}
-      points={economy.points}
-      redeemableAmount={economy.redeemableAmount}
-      onRedeem={economy.redeemPoints}
-      hydrated={economy.hydrated}
+      balance={balance}
+      hydrated={hydrated}
       economyEnabled={economyEnabled}
     />
   )
