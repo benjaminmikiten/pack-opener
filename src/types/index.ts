@@ -91,6 +91,8 @@ export interface SetInfo {
   gradient: string[]
   logoUrl: string
   price: number
+  /** Current secondary-market price for a sealed pack (hard mode). */
+  hardModePrice: number
 }
 
 export interface CollectionRecord {

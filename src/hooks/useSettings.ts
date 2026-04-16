@@ -7,9 +7,10 @@ const STORAGE_KEY = 'pack-opener-settings'
 interface Settings {
   economyEnabled: boolean
   animationsEnabled: boolean
+  hardModeEnabled: boolean
 }
 
-const DEFAULT: Settings = { economyEnabled: true, animationsEnabled: true }
+const DEFAULT: Settings = { economyEnabled: true, animationsEnabled: true, hardModeEnabled: false }
 
 let lastRaw: string | null = undefined as unknown as null
 let cachedSettings: Settings = { ...DEFAULT }
@@ -70,10 +71,17 @@ export function useSettings() {
     notify()
   }, [])
 
+  const setHardModeEnabled = useCallback((enabled: boolean) => {
+    writeSettings({ ...getSnapshot(), hardModeEnabled: enabled })
+    notify()
+  }, [])
+
   return {
     economyEnabled: settings.economyEnabled,
     animationsEnabled: settings.animationsEnabled,
+    hardModeEnabled: settings.hardModeEnabled,
     setEconomyEnabled,
     setAnimationsEnabled,
+    setHardModeEnabled,
   }
 }

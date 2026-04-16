@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSettings } from '@/hooks/useSettings'
-import { useEconomy } from '@/hooks/useEconomy'
+import { useEconomy, HARD_MODE_STARTING_BALANCE } from '@/hooks/useEconomy'
 
 function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
   return (
@@ -24,8 +24,18 @@ function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean
 }
 
 export default function NavBar() {
-  const { economyEnabled, setEconomyEnabled, animationsEnabled, setAnimationsEnabled } = useSettings()
+  const { economyEnabled, setEconomyEnabled, animationsEnabled, setAnimationsEnabled, hardModeEnabled, setHardModeEnabled } = useSettings()
   const { balance, hydrated, resetEconomy } = useEconomy()
+
+  // Cheapest hard mode pack is $59.99 (Base Set 2). If the user enables hard
+  // mode and can't afford any pack, automatically give them the hard mode
+  // starting balance so they can play right away.
+  const handleHardModeToggle = (enabled: boolean) => {
+    setHardModeEnabled(enabled)
+    if (enabled && balance < 59.99) {
+      resetEconomy(HARD_MODE_STARTING_BALANCE)
+    }
+  }
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   const showBalance = economyEnabled && hydrated
@@ -134,20 +144,29 @@ export default function NavBar() {
                   </div>
                   <Toggle enabled={animationsEnabled} onChange={setAnimationsEnabled} />
                 </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-medium text-white">Hard Mode</div>
+                    <div className="mt-0.5 text-xs text-gray-500">
+                      Packs priced at today&apos;s secondary market rates.
+                    </div>
+                  </div>
+                  <Toggle enabled={hardModeEnabled} onChange={handleHardModeToggle} />
+                </div>
 
                 <div className="border-t border-white/10 pt-4">
                   <div className="mb-2">
                     <div className="text-sm font-medium text-white">Reset Economy</div>
                     <div className="mt-0.5 text-xs text-gray-500">
-                      Restore balance to $10.00.
+                      Restore balance to {hardModeEnabled ? `$${HARD_MODE_STARTING_BALANCE.toFixed(2)}` : '$10.00'}.
                     </div>
                   </div>
                   <button
-                    onClick={resetEconomy}
+                    onClick={() => resetEconomy(hardModeEnabled ? HARD_MODE_STARTING_BALANCE : 10)}
                     className="rounded-lg px-3 py-1.5 text-xs font-semibold text-red-400 transition-colors hover:bg-red-400/10 hover:text-red-300"
                     style={{ border: '1px solid rgba(248,113,113,0.3)' }}
                   >
-                    Reset to $10.00
+                    Reset to {hardModeEnabled ? `$${HARD_MODE_STARTING_BALANCE.toFixed(2)}` : '$10.00'}
                   </button>
                 </div>
               </div>
