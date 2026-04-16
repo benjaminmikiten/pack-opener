@@ -1,4 +1,4 @@
-import { CollectionEntry, CollectionRecord, CollectionStore, PackResult, getMarketPrice } from '@/types'
+import { CollectionEntry, CollectionRecord, CollectionStore, PackResult, getEffectivePrice } from '@/types'
 
 const STORAGE_KEY = 'pokemon-pack-opener-collection'
 const VERSION_KEY = 'pokemon-pack-opener-collection-version'
@@ -80,18 +80,66 @@ export function addPackToCollection(pack: PackResult): void {
   writeStore(store)
 }
 
-/** Removes the given card IDs from the collection and returns total market value sold. */
-export function sellCards(cardIds: string[]): { store: CollectionStore; totalValue: number } {
+/**
+ * Sell copies of cards by storeKey.
+ * Each item specifies a storeKey (the key in CollectionStore) and how many copies to sell.
+ * If count >= record.count the entry is deleted; otherwise count is decremented.
+ * Returns the updated store and total value sold (with PSA multipliers applied).
+ */
+export function sellCards(
+  items: Array<{ storeKey: string; count: number }>
+): { store: CollectionStore; totalValue: number } {
   const store = readStore()
   let totalValue = 0
-  for (const id of cardIds) {
-    const record = store[id]
+  for (const { storeKey, count } of items) {
+    const record = store[storeKey]
     if (!record) continue
-    totalValue += (getMarketPrice(record.card) ?? 0) * record.count
-    delete store[id]
+    const effectiveCount = Math.min(count, record.count)
+    totalValue += (getEffectivePrice(record) ?? 0) * effectiveCount
+    if (effectiveCount >= record.count) {
+      delete store[storeKey]
+    } else {
+      store[storeKey] = { ...record, count: record.count - effectiveCount }
+    }
   }
   writeStore(store)
   return { store, totalValue }
+}
+
+/**
+ * Grade one copy of a card.
+ * Decrements (or removes) the original record and creates a new graded record
+ * under the key `${cardId}:g${timestamp}`.
+ */
+export function gradeCardInCollection(
+  storeKey: string,
+  grade: number
+): { store: CollectionStore; gradedKey: string } {
+  const store = readStore()
+  const record = store[storeKey]
+  if (!record) return { store, gradedKey: '' }
+
+  // Remove one copy from the original record
+  if (record.count <= 1) {
+    delete store[storeKey]
+  } else {
+    store[storeKey] = { ...record, count: record.count - 1 }
+  }
+
+  // Create graded entry (always count 1)
+  const gradedKey = `${record.card.id}:g${Date.now()}`
+  const gradedRecord: CollectionRecord = {
+    card: record.card,
+    setId: record.setId,
+    count: 1,
+    firstOpenedAt: record.firstOpenedAt,
+    lastOpenedAt: record.lastOpenedAt,
+    grade,
+  }
+  store[gradedKey] = gradedRecord
+
+  writeStore(store)
+  return { store, gradedKey }
 }
 
 export function clearCollection(): void {

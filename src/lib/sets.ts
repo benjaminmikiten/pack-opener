@@ -43,6 +43,22 @@ export const SETS: SetInfo[] = [
     logoUrl: `${BASE}/logos/base5.png`,
     price: 3.29,
   },
+  {
+    id: 'gym1',
+    name: 'Gym Heroes',
+    accent: '#E8C84A',
+    gradient: ['#0d1628', '#1a2240', '#0d1a30'],
+    logoUrl: 'https://images.pokemontcg.io/gym1/logo.png',
+    price: 3.49,
+  },
+  {
+    id: 'gym2',
+    name: 'Gym Challenge',
+    accent: '#C04444',
+    gradient: ['#1a0d1a', '#2e1228', '#1a0d20'],
+    logoUrl: 'https://images.pokemontcg.io/gym2/logo.png',
+    price: 3.49,
+  },
 ]
 
 export const SET_MAP: Record<SetId, SetInfo> = Object.fromEntries(

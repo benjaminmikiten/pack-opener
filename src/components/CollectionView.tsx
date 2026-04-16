@@ -1,8 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CollectionRecord, CollectionStore, SetId, getMarketPrice } from '@/types'
+import { CollectionRecord, CollectionStore, SetId, getMarketPrice, getEffectivePrice, PSA_GRADE_NAMES } from '@/types'
 import { SETS } from '@/lib/sets'
 import Card from './Card'
 import CardModal from './CardModal'
@@ -10,89 +10,219 @@ import Link from 'next/link'
 
 interface CollectionViewProps {
   collection: CollectionStore
-  onSell: (ids: string[]) => void
+  onSell: (items: Array<{ storeKey: string; count: number }>) => void
+  onGrade: (storeKey: string, grade: number) => void
   onClear: () => void
 }
 
 type SortKey = 'newest' | 'oldest' | 'name-az' | 'name-za' | 'rarity' | 'price-high' | 'price-low'
-type RarityFilter = 'all' | 'energy' | 'common' | 'uncommon' | 'rare' | 'holo'
+type RarityKey = 'energy' | 'common' | 'uncommon' | 'rare' | 'holo'
 
 const RARITY_ORDER: Record<string, number> = {
-  energy: 0,
-  common: 1,
-  uncommon: 2,
-  rare: 3,
-  holo: 4,
+  energy: 0, common: 1, uncommon: 2, rare: 3, holo: 4,
 }
 
-const RARITY_LABELS: Record<RarityFilter, string> = {
-  all: 'All Rarities',
-  energy: 'Energy',
-  common: 'Common',
-  uncommon: 'Uncommon',
-  rare: 'Rare',
-  holo: 'Holo Rare',
+const RARITY_OPTIONS: Array<{ value: RarityKey; label: string }> = [
+  { value: 'energy', label: 'Energy' },
+  { value: 'common', label: 'Common' },
+  { value: 'uncommon', label: 'Uncommon' },
+  { value: 'rare', label: 'Rare' },
+  { value: 'holo', label: 'Holo Rare' },
+]
+
+const SET_OPTIONS = SETS.map((s) => ({ value: s.id, label: s.name }))
+
+// ─── Multi-select filter dropdown ─────────────────────────────────────────────
+
+function FilterDropdown({
+  label,
+  options,
+  selected,
+  onToggle,
+  onClear,
+}: {
+  label: string
+  options: Array<{ value: string; label: string }>
+  selected: Set<string>
+  onToggle: (value: string) => void
+  onClear: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const displayLabel =
+    selected.size === 0
+      ? label
+      : selected.size === 1
+        ? options.find((o) => selected.has(o.value))?.label ?? label
+        : `${selected.size} selected`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white outline-none hover:border-white/20"
+      >
+        <span>{displayLabel}</span>
+        {selected.size > 0 && (
+          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-black">
+            {selected.size}
+          </span>
+        )}
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor" className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <path d="M5 7L0 2h10L5 7z" />
+        </svg>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.97 }}
+            transition={{ duration: 0.12 }}
+            className="absolute left-0 top-full z-50 mt-1 min-w-[180px] rounded-xl border border-white/10 bg-gray-900 p-1.5 shadow-2xl"
+          >
+            {selected.size > 0 && (
+              <button
+                onClick={() => { onClear(); setOpen(false) }}
+                className="w-full rounded px-3 py-1.5 text-left text-xs text-amber-400 hover:bg-white/5"
+              >
+                Clear selection
+              </button>
+            )}
+            {options.map((option) => (
+              <label
+                key={option.value}
+                className="flex cursor-pointer items-center gap-2 rounded px-3 py-1.5 hover:bg-white/5"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(option.value)}
+                  onChange={() => onToggle(option.value)}
+                  className="accent-amber-400"
+                />
+                <span className="text-sm text-white">{option.label}</span>
+              </label>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
 }
 
-export default function CollectionView({ collection, onSell, onClear }: CollectionViewProps) {
-  const [zoomedCard, setZoomedCard] = useState<CollectionRecord | null>(null)
-  const [setFilter, setSetFilter] = useState<SetId | 'all'>('all')
-  const [rarityFilter, setRarityFilter] = useState<RarityFilter>('all')
+// ─── Sell item type (one copy of one card) ────────────────────────────────────
+
+interface SellItem {
+  storeKey: string
+  record: CollectionRecord
+  copyIndex: number
+  sellKey: string // `${storeKey}:copy:${copyIndex}` — unique per visible tile
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
+export default function CollectionView({ collection, onSell, onGrade, onClear }: CollectionViewProps) {
+  const [zoomedEntry, setZoomedEntry] = useState<{ key: string; record: CollectionRecord } | null>(null)
+  const [setFilters, setSetFilters] = useState<Set<string>>(new Set())
+  const [rarityFilters, setRarityFilters] = useState<Set<string>>(new Set())
   const [sort, setSort] = useState<SortKey>('newest')
   const [search, setSearch] = useState('')
   const [sellMode, setSellMode] = useState(false)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [selected, setSelected] = useState<Set<string>>(new Set()) // tracks sellKeys
   const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const records = useMemo(() => Object.values(collection), [collection])
-  const totalCards = useMemo(() => records.reduce((sum, r) => sum + r.count, 0), [records])
-  const totalUnique = records.length
+  // All records as {key, record} pairs
+  const allEntries = useMemo(
+    () => Object.entries(collection).map(([key, record]) => ({ key, record })),
+    [collection]
+  )
 
-  const filtered = useMemo(() => {
-    let entries = [...records]
+  const totalCards = useMemo(
+    () => allEntries.reduce((sum, e) => sum + e.record.count, 0),
+    [allEntries]
+  )
+  const totalUnique = allEntries.length
 
-    if (setFilter !== 'all') {
-      entries = entries.filter((r) => r.setId === setFilter)
+  // Filtered + sorted entries
+  const filteredEntries = useMemo(() => {
+    let entries = [...allEntries]
+
+    if (setFilters.size > 0) {
+      entries = entries.filter((e) => setFilters.has(e.record.setId))
     }
-
-    if (rarityFilter !== 'all') {
-      entries = entries.filter((r) => r.card.slot === rarityFilter)
+    if (rarityFilters.size > 0) {
+      entries = entries.filter((e) => rarityFilters.has(e.record.card.slot ?? ''))
     }
-
     if (search.trim()) {
       const q = search.trim().toLowerCase()
-      entries = entries.filter((r) => r.card.name.toLowerCase().includes(q))
+      entries = entries.filter((e) => e.record.card.name.toLowerCase().includes(q))
     }
 
     entries.sort((a, b) => {
+      const ra = a.record
+      const rb = b.record
       switch (sort) {
-        case 'newest': return new Date(b.lastOpenedAt).getTime() - new Date(a.lastOpenedAt).getTime()
-        case 'oldest': return new Date(a.firstOpenedAt).getTime() - new Date(b.firstOpenedAt).getTime()
-        case 'name-az': return a.card.name.localeCompare(b.card.name)
-        case 'name-za': return b.card.name.localeCompare(a.card.name)
-        case 'rarity': return (RARITY_ORDER[b.card.slot ?? ''] ?? 0) - (RARITY_ORDER[a.card.slot ?? ''] ?? 0)
-        case 'price-high': return (getMarketPrice(b.card) ?? 0) - (getMarketPrice(a.card) ?? 0)
-        case 'price-low': return (getMarketPrice(a.card) ?? 0) - (getMarketPrice(b.card) ?? 0)
+        case 'newest': return new Date(rb.lastOpenedAt).getTime() - new Date(ra.lastOpenedAt).getTime()
+        case 'oldest': return new Date(ra.firstOpenedAt).getTime() - new Date(rb.firstOpenedAt).getTime()
+        case 'name-az': return ra.card.name.localeCompare(rb.card.name)
+        case 'name-za': return rb.card.name.localeCompare(ra.card.name)
+        case 'rarity': return (RARITY_ORDER[rb.card.slot ?? ''] ?? 0) - (RARITY_ORDER[ra.card.slot ?? ''] ?? 0)
+        case 'price-high': return (getEffectivePrice(rb) ?? 0) - (getEffectivePrice(ra) ?? 0)
+        case 'price-low': return (getEffectivePrice(ra) ?? 0) - (getEffectivePrice(rb) ?? 0)
         default: return 0
       }
     })
 
     return entries
-  }, [records, setFilter, rarityFilter, sort, search])
+  }, [allEntries, setFilters, rarityFilters, sort, search])
 
-  const toggleCard = (id: string) => {
+  // In sell mode, expand each entry into individual copy tiles
+  const sellItems = useMemo<SellItem[]>(() => {
+    if (!sellMode) return []
+    return filteredEntries.flatMap(({ key, record }) =>
+      Array.from({ length: record.count }, (_, i) => ({
+        storeKey: key,
+        record,
+        copyIndex: i,
+        sellKey: `${key}:copy:${i}`,
+      }))
+    )
+  }, [sellMode, filteredEntries])
+
+  // Sell total (computed from selected sellKeys)
+  const sellTotal = useMemo(() => {
+    const quantities = new Map<string, number>()
+    for (const sellKey of selected) {
+      const [storeKey] = sellKey.split(':copy:')
+      quantities.set(storeKey, (quantities.get(storeKey) ?? 0) + 1)
+    }
+    let total = 0
+    for (const [storeKey, count] of quantities) {
+      const record = collection[storeKey]
+      if (record) total += (getEffectivePrice(record) ?? 0) * count
+    }
+    return parseFloat(total.toFixed(2))
+  }, [selected, collection])
+
+  const toggleSellItem = (sellKey: string) => {
     setSelected((prev) => {
       const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (next.has(sellKey)) next.delete(sellKey)
+      else next.add(sellKey)
       return next
     })
   }
 
-  const selectAllFiltered = () => {
-    setSelected(new Set(filtered.map((r) => r.card.id)))
-  }
-
+  const selectAll = () => setSelected(new Set(sellItems.map((i) => i.sellKey)))
   const deselectAll = () => setSelected(new Set())
 
   const exitSellMode = () => {
@@ -100,21 +230,19 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
     setSelected(new Set())
   }
 
-  const selectedRecords = useMemo(
-    () => records.filter((r) => selected.has(r.card.id)),
-    [records, selected]
-  )
-
-  const sellTotal = useMemo(
-    () => selectedRecords.reduce((sum, r) => sum + (getMarketPrice(r.card) ?? 0) * r.count, 0),
-    [selectedRecords]
-  )
-
   const handleConfirmSell = () => {
-    onSell(Array.from(selected))
+    const quantities = new Map<string, number>()
+    for (const sellKey of selected) {
+      const [storeKey] = sellKey.split(':copy:')
+      quantities.set(storeKey, (quantities.get(storeKey) ?? 0) + 1)
+    }
+    const items = Array.from(quantities.entries()).map(([storeKey, count]) => ({ storeKey, count }))
+    onSell(items)
     setConfirmOpen(false)
     exitSellMode()
   }
+
+  const filtersActive = setFilters.size > 0 || rarityFilters.size > 0 || !!search.trim() || sort !== 'newest'
 
   return (
     <div
@@ -137,13 +265,7 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
           {totalCards > 0 && (
             <>
               <button
-                onClick={() => {
-                  if (sellMode) {
-                    exitSellMode()
-                  } else {
-                    setSellMode(true)
-                  }
-                }}
+                onClick={() => (sellMode ? exitSellMode() : setSellMode(true))}
                 className="rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
                 style={
                   sellMode
@@ -151,7 +273,7 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
                     : { background: 'rgba(255,255,255,0.07)', color: '#d1d5db', border: '1px solid rgba(255,255,255,0.1)' }
                 }
               >
-                {sellMode ? 'Done Selling' : 'Sell Cards'}
+                {sellMode ? 'Exit Sell Mode' : 'Enter Sell Mode'}
               </button>
               <button
                 onClick={() => {
@@ -191,32 +313,41 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
               placeholder="Search cards…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-white/25 focus:ring-0"
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder-gray-500 outline-none focus:border-white/25"
               style={{ minWidth: 160 }}
             />
 
-            {/* Set filter */}
-            <select
-              value={setFilter}
-              onChange={(e) => setSetFilter(e.target.value as SetId | 'all')}
-              className="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
-            >
-              <option value="all">All Sets</option>
-              {SETS.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            {/* Set multi-select */}
+            <FilterDropdown
+              label="All Sets"
+              options={SET_OPTIONS}
+              selected={setFilters}
+              onToggle={(v) => {
+                setSetFilters((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(v)) next.delete(v)
+                  else next.add(v)
+                  return next
+                })
+              }}
+              onClear={() => setSetFilters(new Set())}
+            />
 
-            {/* Rarity filter */}
-            <select
-              value={rarityFilter}
-              onChange={(e) => setRarityFilter(e.target.value as RarityFilter)}
-              className="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white outline-none focus:border-white/25"
-            >
-              {(Object.keys(RARITY_LABELS) as RarityFilter[]).map((r) => (
-                <option key={r} value={r}>{RARITY_LABELS[r]}</option>
-              ))}
-            </select>
+            {/* Rarity multi-select */}
+            <FilterDropdown
+              label="All Rarities"
+              options={RARITY_OPTIONS}
+              selected={rarityFilters}
+              onToggle={(v) => {
+                setRarityFilters((prev) => {
+                  const next = new Set(prev)
+                  if (next.has(v)) next.delete(v)
+                  else next.add(v)
+                  return next
+                })
+              }}
+              onClear={() => setRarityFilters(new Set())}
+            />
 
             {/* Sort */}
             <select
@@ -234,16 +365,16 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
             </select>
 
             {/* Result count */}
-            {filtered.length !== totalUnique && (
+            {filteredEntries.length !== totalUnique && (
               <span className="text-sm text-gray-500">
-                {filtered.length} of {totalUnique}
+                {filteredEntries.length} of {totalUnique}
               </span>
             )}
 
             {/* Clear filters */}
-            {(setFilter !== 'all' || rarityFilter !== 'all' || search || sort !== 'newest') && (
+            {filtersActive && (
               <button
-                onClick={() => { setSetFilter('all'); setRarityFilter('all'); setSearch(''); setSort('newest') }}
+                onClick={() => { setSetFilters(new Set()); setRarityFilters(new Set()); setSearch(''); setSort('newest') }}
                 className="text-sm text-gray-500 underline underline-offset-2 hover:text-gray-300"
               >
                 Reset
@@ -254,11 +385,11 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
             {sellMode && (
               <div className="ml-auto flex items-center gap-2">
                 <button
-                  onClick={selectAllFiltered}
+                  onClick={selectAll}
                   className="rounded-lg px-3 py-1.5 text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-400/10"
                   style={{ border: '1px solid rgba(251,191,36,0.3)' }}
                 >
-                  Select All ({filtered.length})
+                  Select All ({sellItems.length})
                 </button>
                 {selected.size > 0 && (
                   <button
@@ -275,7 +406,7 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
 
           {/* Cards grid */}
           <AnimatePresence mode="popLayout">
-            {filtered.length === 0 ? (
+            {(sellMode ? sellItems.length : filteredEntries.length) === 0 ? (
               <motion.div
                 key="no-results"
                 initial={{ opacity: 0 }}
@@ -285,35 +416,70 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
               >
                 No cards match your filters.
               </motion.div>
-            ) : (
-              <motion.div
-                key="grid"
-                className={`flex flex-wrap gap-4 ${sellMode ? 'pb-32' : ''}`}
-              >
-                {filtered.map((record, i) => (
+            ) : sellMode ? (
+              /* Sell mode: expanded individual copy tiles */
+              <motion.div key="sell-grid" className="flex flex-wrap gap-4 pb-32">
+                {sellItems.map((item, i) => (
                   <motion.div
-                    key={record.card.id}
+                    key={item.sellKey}
                     layout
                     initial={{ opacity: 0, scale: 0.85 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.85 }}
-                    transition={{ duration: 0.2, delay: Math.min(i * 0.02, 0.3) }}
+                    transition={{ duration: 0.18, delay: Math.min(i * 0.015, 0.25) }}
+                    className="relative"
+                  >
+                    <Card
+                      card={item.record.card}
+                      revealed
+                      compact
+                      selected={selected.has(item.sellKey)}
+                      price={getEffectivePrice(item.record)}
+                      onClick={() => toggleSellItem(item.sellKey)}
+                    />
+                    {/* Grade badge overlay for graded cards in sell mode */}
+                    {item.record.grade !== undefined && (
+                      <div
+                        className="absolute left-1 top-1 rounded px-1.5 py-0.5 text-xs font-bold text-white"
+                        style={{ background: '#1a4fa8', fontSize: 9 }}
+                      >
+                        PSA {item.record.grade}
+                      </div>
+                    )}
+                  </motion.div>
+                ))}
+              </motion.div>
+            ) : (
+              /* Normal mode: one tile per unique record */
+              <motion.div key="grid" className="flex flex-wrap gap-4">
+                {filteredEntries.map(({ key, record }, i) => (
+                  <motion.div
+                    key={key}
+                    layout
+                    initial={{ opacity: 0, scale: 0.85 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.85 }}
+                    transition={{ duration: 0.18, delay: Math.min(i * 0.015, 0.25) }}
+                    className="relative"
                   >
                     <Card
                       card={record.card}
-                      revealed={true}
-                      compact={true}
-                      selected={sellMode && selected.has(record.card.id)}
-                      count={record.count}
-                      price={getMarketPrice(record.card)}
-                      onClick={() => {
-                        if (sellMode) {
-                          toggleCard(record.card.id)
-                        } else {
-                          setZoomedCard(record)
-                        }
-                      }}
+                      revealed
+                      compact
+                      count={record.grade === undefined ? record.count : undefined}
+                      price={getEffectivePrice(record)}
+                      onClick={() => setZoomedEntry({ key, record })}
                     />
+                    {/* PSA grade badge */}
+                    {record.grade !== undefined && (
+                      <div
+                        className="absolute left-1 top-1 rounded px-1.5 py-0.5 text-xs font-bold text-white"
+                        style={{ background: '#1a4fa8', fontSize: 9 }}
+                        title={`PSA ${record.grade} – ${PSA_GRADE_NAMES[record.grade]}`}
+                      >
+                        PSA {record.grade}
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </motion.div>
@@ -323,8 +489,17 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
       )}
 
       {/* Card modal (not shown in sell mode) */}
-      {!sellMode && zoomedCard && (
-        <CardModal card={zoomedCard.card} onClose={() => setZoomedCard(null)} />
+      {!sellMode && zoomedEntry && (
+        <CardModal
+          card={zoomedEntry.record.card}
+          onClose={() => setZoomedEntry(null)}
+          collectionKey={zoomedEntry.key}
+          collectionRecord={zoomedEntry.record}
+          onGrade={(key, grade) => {
+            onGrade(key, grade)
+            setZoomedEntry(null)
+          }}
+        />
       )}
 
       {/* Sticky sell footer */}
@@ -341,10 +516,10 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
           >
             <div className="text-sm text-gray-400">
               {selected.size === 0 ? (
-                <span>Select cards to sell</span>
+                <span>Select individual cards to sell</span>
               ) : (
                 <span>
-                  <span className="font-bold text-white">{selected.size}</span> card{selected.size !== 1 ? 's' : ''} selected
+                  <span className="font-bold text-white">{selected.size}</span> cop{selected.size !== 1 ? 'ies' : 'y'} selected
                   {sellTotal > 0 && (
                     <span className="ml-2 font-semibold text-amber-400">· ${sellTotal.toFixed(2)}</span>
                   )}
@@ -361,7 +536,7 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
                   : { background: 'rgba(255,255,255,0.08)', color: '#555', cursor: 'not-allowed' }
               }
             >
-              Sell{selected.size > 0 && sellTotal > 0 ? ` for $${sellTotal.toFixed(2)}` : ''}
+              {selected.size > 0 && sellTotal > 0 ? `Sell for $${sellTotal.toFixed(2)}` : 'Sell'}
             </button>
           </motion.div>
         )}
@@ -390,7 +565,11 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
             >
               <h2 className="mb-1 text-lg font-bold text-white">Confirm Sale</h2>
               <p className="mb-6 text-sm text-gray-400">
-                Sell {selected.size} card{selected.size !== 1 ? 's' : ''} for{' '}
+                Sell{' '}
+                <span className="font-semibold text-white">
+                  {selected.size} cop{selected.size !== 1 ? 'ies' : 'y'}
+                </span>{' '}
+                for{' '}
                 <span className="font-semibold text-amber-400">${sellTotal.toFixed(2)}</span>?
                 {' '}This cannot be undone.
               </p>
@@ -403,7 +582,7 @@ export default function CollectionView({ collection, onSell, onClear }: Collecti
                 </button>
                 <button
                   onClick={handleConfirmSell}
-                  className="flex-1 rounded-xl py-2.5 text-sm font-bold transition-colors"
+                  className="flex-1 rounded-xl py-2.5 text-sm font-bold"
                   style={{ background: '#fbbf24', color: '#000' }}
                 >
                   Sell for ${sellTotal.toFixed(2)}

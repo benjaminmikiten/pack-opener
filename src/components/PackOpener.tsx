@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
-import { SetId, PokemonCard, PackResult, SetInfo } from '@/types'
+import { SetId, PokemonCard, PackResult, SetInfo, getMarketPrice } from '@/types'
 import { SET_MAP } from '@/lib/sets'
 import { generatePack } from '@/lib/packGenerator'
 import { useEconomy } from '@/hooks/useEconomy'
@@ -176,6 +176,14 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
       setPhase('ready')
     }
   }, [setId, onPackOpened])
+
+  // Reveal all remaining cards instantly (usable mid-pack)
+  const ripItOpen = useCallback(() => {
+    setRevealedCards(cards)
+    setIsTransitioning(false)
+    setPhase('done')
+    onPackOpened({ cards, setId, openedAt: new Date().toISOString() })
+  }, [cards, setId, onPackOpened])
 
   const handleCardClick = useCallback(() => {
     if (isTransitioning) return
@@ -363,8 +371,19 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
             className="flex flex-col items-center"
           >
             {phase === 'revealing' && (
-              <div className="mb-4 text-sm text-gray-400">
-                Card {Math.min(currentIndex + 1, cards.length)} of {cards.length}
+              <div className="mb-4 flex items-center gap-4">
+                <span className="text-sm text-gray-400">
+                  Card {Math.min(currentIndex + 1, cards.length)} of {cards.length}
+                </span>
+                <motion.button
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.97 }}
+                  onClick={ripItOpen}
+                  className="rounded-lg px-3 py-1 text-xs text-gray-500 transition-colors hover:text-gray-300"
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}
+                >
+                  rip it open →
+                </motion.button>
               </div>
             )}
 
@@ -541,7 +560,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                       animate={{ scale: 1, opacity: 1, y: 0 }}
                       transition={{ type: 'spring', stiffness: 350, damping: 24 }}
                     >
-                      <Card card={card} compact onClick={() => setZoomedCard(card)} />
+                      <Card card={card} compact price={getMarketPrice(card)} onClick={() => setZoomedCard(card)} />
                     </motion.div>
                   ))}
                 </div>

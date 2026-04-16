@@ -1,20 +1,29 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion'
-import { PokemonCard, getMarketPrice } from '@/types'
+import { PokemonCard, CollectionRecord, getMarketPrice, getEffectivePrice, PSA_MULTIPLIERS, PSA_GRADE_NAMES } from '@/types'
 
 interface CardModalProps {
   card: PokemonCard | null
   onClose: () => void
+  /** Pass when opened from collection view to enable grading */
+  collectionKey?: string
+  collectionRecord?: CollectionRecord
+  onGrade?: (key: string, grade: number) => void
 }
 
-export default function CardModal({ card, onClose }: CardModalProps) {
+type GradingState = 'idle' | 'grading' | 'revealed'
+
+export default function CardModal({ card, onClose, collectionKey, collectionRecord, onGrade }: CardModalProps) {
   const cardRef = useRef<HTMLDivElement>(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
   const rotateY = useSpring(x, { stiffness: 120, damping: 25 })
   const rotateX = useSpring(y, { stiffness: 120, damping: 25 })
+
+  const [gradingState, setGradingState] = useState<GradingState>('idle')
+  const [pendingGrade, setPendingGrade] = useState<number | null>(null)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,6 +62,28 @@ export default function CardModal({ card, onClose }: CardModalProps) {
     y.set(0)
   }
 
+  const startGrading = useCallback(() => {
+    setGradingState('grading')
+    // Random grade 1-9 (never 10)
+    const grade = Math.floor(Math.random() * 9) + 1
+    setTimeout(() => {
+      setPendingGrade(grade)
+      setGradingState('revealed')
+    }, 1200)
+  }, [])
+
+  const acceptGrade = useCallback(() => {
+    if (pendingGrade !== null && collectionKey && onGrade) {
+      onGrade(collectionKey, pendingGrade)
+      onClose()
+    }
+  }, [pendingGrade, collectionKey, onGrade, onClose])
+
+  const declineGrade = useCallback(() => {
+    setGradingState('idle')
+    setPendingGrade(null)
+  }, [])
+
   if (!card) return null
 
   const isHolo = card.slot === 'holo'
@@ -60,6 +91,20 @@ export default function CardModal({ card, onClose }: CardModalProps) {
   const imageUrl = isHolo
     ? card.images.large.replace('.png', '_hires.png').replace('_hires_hires.png', '_hires.png')
     : card.images.large
+
+  const alreadyGraded = collectionRecord?.grade !== undefined
+  const canGrade = !!onGrade && !!collectionKey && !alreadyGraded
+  const basePrice = getMarketPrice(card)
+  const effectivePrice = collectionRecord ? getEffectivePrice(collectionRecord) : basePrice
+
+  // PSA slab color by grade
+  const psaSlabColor = (grade: number) => {
+    if (grade >= 9) return '#1a4fa8'
+    if (grade >= 7) return '#1a6a3a'
+    if (grade >= 5) return '#7a6a10'
+    if (grade >= 3) return '#7a3010'
+    return '#5a1010'
+  }
 
   return (
     <AnimatePresence>
@@ -110,6 +155,22 @@ export default function CardModal({ card, onClose }: CardModalProps) {
               }}
             >
               ⭐ RARE
+            </div>
+          )}
+
+          {/* PSA slab badge (already graded) */}
+          {alreadyGraded && collectionRecord?.grade !== undefined && (
+            <div
+              className="rounded-lg px-5 py-2 text-center font-bold text-white"
+              style={{
+                background: psaSlabColor(collectionRecord.grade),
+                boxShadow: `0 0 20px ${psaSlabColor(collectionRecord.grade)}99`,
+                border: '2px solid rgba(255,255,255,0.2)',
+              }}
+            >
+              <div className="text-xs uppercase tracking-widest opacity-75">PSA Grade</div>
+              <div className="text-3xl font-extrabold">{collectionRecord.grade}</div>
+              <div className="text-xs opacity-75">{PSA_GRADE_NAMES[collectionRecord.grade]}</div>
             </div>
           )}
 
@@ -167,16 +228,105 @@ export default function CardModal({ card, onClose }: CardModalProps) {
             </motion.div>
           </div>
 
-          {/* Card name */}
+          {/* Card info */}
           <div className="text-center">
             <p className="text-xl font-bold text-white">{card.name}</p>
             <p className="mt-1 text-sm text-gray-400 capitalize">{card.slot}</p>
-            {getMarketPrice(card) !== undefined && (
+            {effectivePrice !== undefined && (
               <p className="mt-1 text-sm font-semibold text-yellow-400">
-                ${getMarketPrice(card)!.toFixed(2)} <span className="text-xs font-normal text-gray-500">market</span>
+                ${effectivePrice.toFixed(2)}{' '}
+                <span className="text-xs font-normal text-gray-500">
+                  {alreadyGraded ? 'graded value' : 'market'}
+                </span>
+                {alreadyGraded && basePrice !== undefined && collectionRecord?.grade && (
+                  <span className="ml-1 text-xs font-normal text-gray-500">
+                    (raw ${basePrice.toFixed(2)} × {PSA_MULTIPLIERS[collectionRecord.grade]}x)
+                  </span>
+                )}
               </p>
             )}
           </div>
+
+          {/* Grading UI */}
+          <AnimatePresence mode="wait">
+            {canGrade && gradingState === 'idle' && (
+              <motion.button
+                key="grade-btn"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                onClick={startGrading}
+                className="rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #1a3a7a, #2a5ab8)', border: '1px solid rgba(100,150,255,0.3)' }}
+              >
+                🏅 Get it Graded
+              </motion.button>
+            )}
+
+            {gradingState === 'grading' && (
+              <motion.div
+                key="grading-spinner"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center gap-2"
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
+                  className="h-8 w-8 rounded-full border-2 border-transparent"
+                  style={{ borderTopColor: '#60a5fa' }}
+                />
+                <span className="text-xs text-gray-400">Submitting to PSA...</span>
+              </motion.div>
+            )}
+
+            {gradingState === 'revealed' && pendingGrade !== null && (
+              <motion.div
+                key="grade-result"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+                className="flex flex-col items-center gap-3"
+              >
+                {/* PSA slab reveal */}
+                <div
+                  className="rounded-xl px-8 py-4 text-center font-bold text-white"
+                  style={{
+                    background: psaSlabColor(pendingGrade),
+                    boxShadow: `0 0 28px ${psaSlabColor(pendingGrade)}cc`,
+                    border: '2px solid rgba(255,255,255,0.2)',
+                  }}
+                >
+                  <div className="text-xs uppercase tracking-widest opacity-75">PSA Grade</div>
+                  <div className="text-4xl font-extrabold">{pendingGrade}</div>
+                  <div className="text-sm opacity-80">{PSA_GRADE_NAMES[pendingGrade]}</div>
+                  {basePrice !== undefined && (
+                    <div className="mt-1 text-xs opacity-60">
+                      ${(basePrice * PSA_MULTIPLIERS[pendingGrade]).toFixed(2)} value
+                      {' '}({PSA_MULTIPLIERS[pendingGrade] >= 1 ? '+' : ''}{Math.round((PSA_MULTIPLIERS[pendingGrade] - 1) * 100)}%)
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={declineGrade}
+                    className="rounded-xl border border-white/10 px-5 py-2 text-sm text-gray-400 transition-colors hover:text-white"
+                  >
+                    Decline
+                  </button>
+                  <button
+                    onClick={acceptGrade}
+                    className="rounded-xl px-5 py-2 text-sm font-bold text-black transition-colors"
+                    style={{ background: '#fbbf24' }}
+                  >
+                    Accept Grade
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <button
             onClick={onClose}
