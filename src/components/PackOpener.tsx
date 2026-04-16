@@ -16,6 +16,7 @@ interface PackOpenerProps {
   setId: SetId
   onBack: () => void
   onPackOpened: (pack: PackResult) => void
+  packPrice: number
 }
 
 type Phase = 'ready' | 'loading' | 'revealing' | 'done'
@@ -130,7 +131,7 @@ function SpotlightFront({ card }: { card: PokemonCard }) {
   )
 }
 
-export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerProps) {
+export default function PackOpener({ setId, onBack, onPackOpened, packPrice }: PackOpenerProps) {
   const { balance, deductPackCost } = useEconomy()
   const { economyEnabled } = useSettings()
   const [phase, setPhase] = useState<Phase>('ready')
@@ -213,7 +214,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
 
   const reset = useCallback(() => {
     if (economyEnabled) {
-      const ok = deductPackCost(setInfo.price)
+      const ok = deductPackCost(packPrice)
       if (!ok) {
         onBack()
         return
@@ -225,7 +226,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
     setIsFlipped(false)
     setIsTransitioning(false)
     setPhase('ready')
-  }, [economyEnabled, deductPackCost, setInfo.price, onBack])
+  }, [economyEnabled, deductPackCost, packPrice, onBack])
 
   return (
     <div
@@ -509,7 +510,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                   <div className="text-3xl font-extrabold text-white">Pack Complete! 🎉</div>
                   <div className="flex w-full flex-col items-stretch gap-3">
                     {(() => {
-                      const canAfford = !economyEnabled || balance >= setInfo.price
+                      const canAfford = !economyEnabled || balance >= packPrice
                       return (
                         <motion.button
                           whileHover={canAfford ? { scale: 1.05 } : {}}
@@ -528,7 +529,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                           Open Another Pack
                           {economyEnabled && !canAfford && (
                             <span className="ml-2 text-xs font-normal opacity-70">
-                              (need ${setInfo.price.toFixed(2)})
+                              (need ${packPrice.toFixed(2)})
                             </span>
                           )}
                         </motion.button>

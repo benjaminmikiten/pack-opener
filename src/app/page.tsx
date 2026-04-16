@@ -11,18 +11,20 @@ import { useSettings } from '@/hooks/useSettings'
 
 export default function Home() {
   const [selectedSet, setSelectedSet] = useState<SetId | null>(null)
+  const [selectedPackPrice, setSelectedPackPrice] = useState(0)
   const { addPack } = useCollection()
   const { balance, hydrated, deductPackCost } = useEconomy()
   const { economyEnabled, hardModeEnabled } = useSettings()
 
   const handleSelectSet = useCallback(
     (setId: SetId) => {
+      const set = SET_MAP[setId]
+      const price = hardModeEnabled ? set.hardModePrice : set.price
       if (economyEnabled) {
-        const set = SET_MAP[setId]
-        const price = hardModeEnabled ? set.hardModePrice : set.price
         const ok = deductPackCost(price)
         if (!ok) return
       }
+      setSelectedPackPrice(price)
       setSelectedSet(setId)
     },
     [economyEnabled, hardModeEnabled, deductPackCost]
@@ -38,6 +40,7 @@ export default function Home() {
         setId={selectedSet}
         onBack={handleBack}
         onPackOpened={handlePackOpened}
+        packPrice={selectedPackPrice}
       />
     )
   }
