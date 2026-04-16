@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import Image from 'next/image'
 import Link from 'next/link'
-import { SetId, PokemonCard, PackResult, SetInfo, getMarketPrice } from '@/types'
+import { SetId, PokemonCard, PackResult, getMarketPrice } from '@/types'
 import { SET_MAP } from '@/lib/sets'
 import { generatePack } from '@/lib/packGenerator'
 import { useEconomy } from '@/hooks/useEconomy'
@@ -79,7 +79,7 @@ function CardBack({ accent }: { accent: string }) {
 }
 
 // The face-up card shown large in the spotlight
-function SpotlightFront({ card, setInfo }: { card: PokemonCard; setInfo: SetInfo }) {
+function SpotlightFront({ card }: { card: PokemonCard }) {
   const [loaded, setLoaded] = useState(false)
   const isHolo = card.slot === 'holo'
   const isRare = card.slot === 'rare'
@@ -441,7 +441,7 @@ export default function PackOpener({ setId, onBack, onPackOpened }: PackOpenerPr
                           transform: 'rotateY(180deg)',
                         }}
                       >
-                        <SpotlightFront card={currentCard} setInfo={setInfo} />
+                        <SpotlightFront card={currentCard} />
                       </div>
                     </motion.div>
 

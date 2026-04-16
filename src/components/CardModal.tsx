@@ -72,14 +72,6 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
     y.set(-py * 14)
   }
 
-  const handleGradeButtonClick = useCallback(() => {
-    if (hasPsaWarningBeenShown()) {
-      beginGrading()
-    } else {
-      setGradingState('warning')
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
   const beginGrading = useCallback(() => {
     setGradingState('grading')
     const grade = Math.floor(Math.random() * 9) + 1
@@ -88,6 +80,14 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
       setGradingState('revealed')
     }, 1200)
   }, [])
+
+  const handleGradeButtonClick = useCallback(() => {
+    if (hasPsaWarningBeenShown()) {
+      beginGrading()
+    } else {
+      setGradingState('warning')
+    }
+  }, [beginGrading])
 
   const acceptWarningAndGrade = useCallback(() => {
     markPsaWarningShown()
@@ -298,7 +298,7 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
                 <h3 className="mb-2 text-base font-bold text-white">This is permanent</h3>
                 <p className="mb-5 text-sm leading-relaxed text-gray-400">
                   Once you submit a card for grading, you get whatever grade PSA gives it — good or bad.
-                  There's no undo, no re-roll. Think of it as the real thing.
+                  No undo, no re-roll. Think of it as the real thing.
                 </p>
                 <div className="flex gap-3">
                   <button

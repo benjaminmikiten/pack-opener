@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { CollectionRecord, CollectionStore, SetId, getMarketPrice, getEffectivePrice, PSA_GRADE_NAMES } from '@/types'
+import { CollectionRecord, CollectionStore, getEffectivePrice, PSA_GRADE_NAMES } from '@/types'
 import { SETS } from '@/lib/sets'
 import Card from './Card'
 import CardModal from './CardModal'

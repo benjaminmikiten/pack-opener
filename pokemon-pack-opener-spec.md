@@ -1,196 +1,358 @@
-# Pokémon Pack Opener — Technical Spec
+# Pokemon TCG Pack Opener — Feature Spec
 
-A web app that simulates opening a classic WOTC-era Pokémon TCG booster pack. Fetches real card data from a public API, generates a statistically correct pack, and presents the cards in authentic reveal order.
+A web app that simulates opening classic WOTC-era Pokemon TCG booster packs. Real card data, statistically accurate pack composition, persistent collection, optional economy, and a card-by-card animated reveal.
 
 ---
 
-## Card Data Source
+## Table of Contents
 
-All card data comes from the **Pokémon TCG API** — free, no auth required for basic use:
-
-```
-https://api.pokemontcg.io/v2/cards?q=set.id:{SET_ID}&pageSize=250&select=id,name,rarity,supertype,subtypes,images
-```
-
-Card image URLs follow this pattern (also returned by the API):
-```
-Small:  https://images.pokemontcg.io/{set_id}/{card_number}.png
-Large:  https://images.pokemontcg.io/{set_id}/{card_number}_hires.png
-```
+1. [Supported Sets](#supported-sets)
+2. [Pack Generation](#pack-generation)
+3. [Card Reveal](#card-reveal)
+4. [Collection](#collection)
+5. [Economy System](#economy-system)
+6. [Settings](#settings)
+7. [Visual Design](#visual-design)
+8. [Animations](#animations)
+9. [Data & API](#data--api)
+10. [Routing & Pages](#routing--pages)
+11. [Keyboard & Touch](#keyboard--touch)
+12. [Storage](#storage)
 
 ---
 
 ## Supported Sets
 
-| Display Name | API Set ID | Cards | Commons | Uncommons | Rares | Holo Rares |
-|-------------|-----------|-------|---------|-----------|-------|------------|
-| Base Set    | `base1`   | 102   | 32      | 32        | 16    | 16         |
-| Jungle      | `base2`   | 64    | 16      | 16        | 16    | 16         |
-| Fossil      | `base3`   | 62    | 16      | 16        | 15    | 15         |
-| Base Set 2  | `base4`   | 130   | 42      | 42        | 20    | 20         |
-| Team Rocket | `base5`   | 83    | 24      | 24        | 17    | 17         |
+Five classic WOTC sets are available:
 
-Team Rocket also has 1 Rare Secret card (treat as a Rare Holo for pack generation purposes).
+| Display Name | API ID   | Cards | Commons | Uncommons | Rares | Holo Rares | Pack Price |
+|-------------|----------|-------|---------|-----------|-------|------------|------------|
+| Base Set    | `base1`  | 102   | 32      | 32        | 16    | 16         | $2.99      |
+| Jungle      | `base2`  | 64    | 16      | 16        | 16    | 16         | $3.29      |
+| Fossil      | `base3`  | 62    | 16      | 16        | 15    | 15         | $3.29      |
+| Base Set 2  | `base4`  | 130   | 42      | 42        | 20    | 20         | $3.29      |
+| Team Rocket | `base5`  | 83    | 24      | 24        | 17    | 17         | $3.29      |
 
----
-
-## Card Rarity Field Values
-
-The API returns a `rarity` string field on each card. The values used in pack generation:
-
-| `rarity` value | Slot in pack |
-|----------------|-------------|
-| `"Common"`     | Common slot |
-| `"Uncommon"`   | Uncommon slot |
-| `"Rare"`       | Non-holo rare slot |
-| `"Rare Holo"`  | Holo rare slot |
-| `"Rare Secret"`| Treat as holo rare |
-| *(no rarity)*  | Basic Energy (identified by `supertype == "Energy"` and `subtypes` containing `"Basic"`) |
+Each set has a unique color accent and gradient used throughout the UI when that set is active.
 
 ---
 
-## Pack Composition
+## Pack Generation
 
-Every classic booster pack contains exactly **11 cards**:
+### Composition
 
-| Slot       | Count | Notes |
-|------------|-------|-------|
-| Energy     | 1     | One random Basic Energy card |
-| Common     | 6     | 6 randomly sampled Common cards (no duplicates) |
-| Uncommon   | 3     | 3 randomly sampled Uncommon cards (no duplicates) |
-| Rare/Holo  | 1     | Either a Rare or Rare Holo (see odds below) |
+Every pack contains exactly **11 cards** in a fixed slot structure:
 
-**Important:** Jungle (`base2`), Fossil (`base3`), and Team Rocket (`base5`) do not include Basic Energy cards in their set data in the API. For packs from these sets, pull the energy card from Base Set (`base1`) — the Basic Energy cards are the same cards that appeared in all classic packs.
+| Slot      | Count | Source |
+|-----------|-------|--------|
+| Energy    | 1     | Random Basic Energy card |
+| Common    | 6     | Random sample, no duplicates |
+| Uncommon  | 3     | Random sample, no duplicates |
+| Rare/Holo | 1     | 33% holo, 67% non-holo |
+
+### Energy Sourcing
+
+Jungle (`base2`), Fossil (`base3`), and Team Rocket (`base5`) do not include Basic Energy cards in their API set data. For packs from these sets, the energy card is pulled from Base Set (`base1`).
+
+### Rarity Odds
+
+The rare slot uses a **33% holo / 67% non-holo** split, reflecting real-world WOTC print run pull rates (not a naive 50/50 pool split).
+
+### Card Rarity Mapping
+
+| API `rarity` value | Pack slot |
+|--------------------|-----------|
+| `"Common"` | Common |
+| `"Uncommon"` | Uncommon |
+| `"Rare"` | Non-holo rare |
+| `"Rare Holo"` | Holo rare |
+| `"Rare Secret"` | Holo rare |
+| *(no rarity + supertype Energy + subtype Basic)* | Energy |
+
+### Reveal Order
+
+Cards are always presented in this order, matching the physical experience of flipping through a pack:
+
+1. Energy
+2. Commons (×6)
+3. Uncommons (×3)
+4. Rare or Holo Rare
 
 ---
 
-## Rarity Odds
+## Card Reveal
 
-Each pack contains exactly one rare slot. The split between holo and non-holo:
+### Modes
 
-- **33% chance** of Rare Holo (roughly 1 in 3 packs)
-- **67% chance** of non-holo Rare
+**Sequential (default):** Cards are revealed one at a time. The user clicks or taps each face-down card to flip it. A 3D rotation animation plays, and the card face is shown. Rarity badges appear after flip.
 
-Implementation:
-```python
-if random.random() < 0.33:
-    rare = random.choice(holo_rares)
-else:
-    rare = random.choice(non_holo_rares)
+**Instant ("Rip It Open"):** All cards are revealed simultaneously without individual flips. Triggered by keyboard shortcut `R` on the pack complete screen or via the "Rip It Open" button.
+
+### Phases
+
+The pack opener moves through four phases:
+
+| Phase | Description |
+|-------|-------------|
+| `ready` | Initial state before opening — shows "Open Pack" button |
+| `loading` | API fetch in progress — shows spinner |
+| `revealing` | Cards shown face-down, flipped one by one |
+| `done` | All cards revealed — shows action buttons |
+
+### Pack Complete Screen
+
+After all cards are flipped, two actions are offered:
+
+- **Open Another Pack** — opens a new pack of the same set (deducts cost if economy is on)
+- **Back to Sets** — returns to the set selector
+
+These buttons are always stacked vertically.
+
+### Keyboard Shortcut
+
+Pressing `R` on the pack complete screen triggers "Rip It Open" — revealing all cards at once without individual flips.
+
+---
+
+## Collection
+
+### Overview
+
+Every card opened is saved to a persistent collection. The collection persists across sessions via localStorage.
+
+### Collection Browser
+
+Located at `/collection`. Displays all collected cards as a responsive grid.
+
+### Filtering
+
+| Filter | Options |
+|--------|---------|
+| Set | All Sets, Base Set, Jungle, Fossil, Base Set 2, Team Rocket |
+| Rarity | All Rarities, Holo Rare, Rare, Uncommon, Common, Energy |
+| Search | Text search on card name (case-insensitive) |
+
+### Sorting
+
+| Sort Option | Behavior |
+|-------------|----------|
+| Newest First | Most recently opened cards shown first (default) |
+| Oldest First | Reverse chronological order |
+| Name A→Z | Alphabetical by card name |
+| Name Z→A | Reverse alphabetical |
+| Rarity (High→Low) | Holo Rares first, then Rares, Uncommons, Commons, Energy |
+
+### Card Modal
+
+Clicking any card in the collection opens a fullscreen modal with:
+
+- Large card image
+- Card name and rarity badge
+- 3D parallax tilt effect (responds to mouse movement and touch)
+- Close via `Escape` key or clicking outside
+
+### Clear Collection
+
+A "Clear Collection" button (with confirmation) permanently removes all collected cards.
+
+---
+
+## Economy System
+
+The economy system is optional and can be toggled on or off in settings.
+
+### Starting State
+
+| Resource | Starting Value |
+|----------|---------------|
+| Balance  | $10.00 |
+| Points   | 0 |
+
+### Pack Cost
+
+Opening a pack deducts its price from the balance:
+
+- Base Set: **$2.99**
+- All other sets: **$3.29**
+
+If economy is enabled and the balance is insufficient, the pack cannot be opened.
+
+### Points
+
+Each individual card flip earns **1 point**. A full pack of 11 cards earns 11 points per pack.
+
+### Redemption
+
+Every **10 points** can be redeemed for **$3.00** added to the balance. This happens automatically when the threshold is reached.
+
+At 11 flips per pack ($3.30 value per full pack), opening packs earns enough to cover their cost over time.
+
+### Display
+
+When economy is enabled, the set selector shows:
+- Current balance (e.g. `$8.71`)
+- Current points (e.g. `7 pts`)
+
+### Reset
+
+A "Reset Economy" button in settings restores balance to $10.00 and points to 0.
+
+---
+
+## Settings
+
+Settings are accessible via a gear icon in the navigation bar. A modal is displayed with the following toggles:
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| Economy Mode | Enable/disable the balance and points system | Off |
+| Animations | Enable/disable all motion animations | On |
+
+Settings persist across sessions via localStorage.
+
+---
+
+## Visual Design
+
+### Set Themes
+
+Each set has a unique color identity applied to backgrounds, gradients, and accents:
+
+| Set | Accent Color | Background Gradient |
+|-----|-------------|---------------------|
+| Base Set | Gold (`#FFD700`) | `#0d0d1a` → `#1a0a2e` → `#0a1628` |
+| Jungle | Green (`#4CAF50`) | `#0a1a0d` → `#0d2e1a` → `#091a0f` |
+| Fossil | Tan (`#C0A060`) | `#1a1a0a` → `#2e2a0a` → `#1a160a` |
+| Base Set 2 | Blue (`#60A0FF`) | `#0d0d1a` → `#1a0a2e` → `#0a1628` |
+| Team Rocket | Red (`#FF4444`) | `#1a0a0a` → `#2e0a0a` → `#1a0808` |
+
+### Card Sizing by Slot
+
+| Slot | Width | Notes |
+|------|-------|-------|
+| Energy | 100px | Slightly faded (opacity 0.85) |
+| Common | 120px | Standard |
+| Uncommon | 118px | Standard |
+| Rare | 150px | Gold glow shadow, gold `⭐ RARE` badge |
+| Holo Rare | 158px | Animated purple/blue/pink glow, `✨ HOLO RARE` badge, uses hi-res image |
+
+### Rarity Badges
+
+- **Holo Rare:** `✨ HOLO RARE` — animated gradient label cycling purple → pink → cyan
+- **Rare:** `⭐ RARE` — static gold gradient label
+
+### Card Hover
+
+All cards respond to hover with: `translateY(-14px) rotate(2deg) scale(1.06)`, using spring easing (`cubic-bezier(.34, 1.56, .64, 1)`).
+
+---
+
+## Animations
+
+### Framer Motion
+
+| Animation | Details |
+|-----------|---------|
+| Card flip | `rotateY(0° → 180°)` with spring physics; front/back faces use `backfaceVisibility: hidden` |
+| Rarity badge gradient | 2.4s cycling loop |
+| Holo glow | Box-shadow pulses between purple, blue, and pink |
+| Phase transitions | Scale + opacity via `AnimatePresence` |
+| Staggered reveal | Cards animate in with delay based on index |
+
+### CSS Animations
+
+| Animation | Details |
+|-----------|---------|
+| `holoShimmer` | Rainbow gradient background sweep across holo card, 4s loop |
+| Skeleton loaders | `animate-pulse` on image placeholders during load |
+| Gradient text | `bg-clip-text` with transparent color on titles |
+
+### Disabling Animations
+
+When animations are disabled in settings, `MotionConfig` is set to `reducedMotion: 'always'`, which globally stops all Framer Motion animations. CSS animations are also suppressed.
+
+---
+
+## Data & API
+
+### Source
+
+All card data is fetched from the **Pokemon TCG API** (free, no auth required for basic use):
+
+```
+https://api.pokemontcg.io/v2/cards?q=set.id:{SET_ID}&pageSize=250&select=id,name,rarity,supertype,subtypes,images
 ```
 
-Note: Base Set and Base Set 2 both have equal numbers of holos and non-holos in the card pool, but the physical print run made holos appear less frequently — the 33% figure reflects the real-world pull rate, not a naive 50/50 pool split.
+### Image URLs
 
----
+```
+Small:    https://images.pokemontcg.io/{set_id}/{card_number}.png
+Hi-res:   https://images.pokemontcg.io/{set_id}/{card_number}_hires.png
+```
 
-## Card Reveal Order
+Holo rare cards use the hi-res image variant.
 
-Cards are presented left-to-right (or top-to-bottom on mobile) in this order, mimicking how you'd flip through a physical pack with the rare face-down at the front:
+### Caching
 
-1. **Energy** (1 card) — the "back" of the pack, revealed first
-2. **Commons** (6 cards)
-3. **Uncommons** (3 cards)
-4. **Rare / Holo Rare** (1 card) — the big reveal, shown last
+API responses are cached in memory (`Map<SetId, PokemonCard[]>`) for the duration of the session. Subsequent pack openings from the same set do not re-fetch.
 
----
+### TypeScript Interfaces
 
-## Visual Design Reference
+```typescript
+interface PokemonCard {
+  id: string
+  name: string
+  rarity?: string
+  supertype?: string
+  subtypes?: string[]
+  images: { small: string; large: string }
+  slot?: 'energy' | 'common' | 'uncommon' | 'rare' | 'holo'
+}
 
-The working prototype uses a dark themed HTML page with per-set color accents:
+interface SetInfo {
+  id: SetId
+  name: string
+  accent: string        // hex color
+  gradient: string[]    // 3-color background gradient
+  logoUrl: string
+  price: number
+}
 
-| Set         | Background gradient                    | Accent color |
-|-------------|----------------------------------------|--------------|
-| Base Set    | `#0d0d1a` → `#1a0a2e` → `#0a1628`    | `#FFD700` (gold) |
-| Jungle      | `#0a1a0d` → `#0d2e1a` → `#091a0f`    | `#4CAF50` (green) |
-| Fossil      | `#1a1a0a` → `#2e2a0a` → `#1a160a`    | `#C0A060` (tan) |
-| Base Set 2  | `#0d0d1a` → `#1a0a2e` → `#0a1628`    | `#60A0FF` (blue) |
-| Team Rocket | `#1a0a0a` → `#2e0a0a` → `#1a0808`    | `#FF4444` (red) |
-
-**Card sizing:**
-- Energy: 100px wide, slightly faded (opacity 0.85)
-- Common: 120px wide
-- Uncommon: 118px wide
-- Non-holo Rare: 150px wide, gold glow shadow, gold name label
-- Holo Rare: 158px wide, animated purple/blue/pink glow, uses `_hires.png` image
-
-**Holo animation:** CSS `box-shadow` pulse cycling between purple and pink tones, ~2.4s loop.
-
-**Holo badge:** Animated gradient label above the card reading "✨ HOLO RARE", cycling through purple → pink → cyan.
-
-**Rare badge:** Static gold gradient label reading "⭐ RARE".
-
-**Hover effect on all cards:** `translateY(-14px) rotate(2deg) scale(1.06)` with a spring easing (`cubic-bezier(.34, 1.56, .64, 1)`).
-
----
-
-## Working Reference Implementation
-
-A working Python script (`open_pack.py`) was already built and validated. Core logic:
-
-```python
-import subprocess, json, random
-from pathlib import Path
-
-HOLO_CHANCE = 0.33
-
-def fetch_cards(set_id):
-    url = f"https://api.pokemontcg.io/v2/cards?q=set.id:{set_id}&pageSize=250&select=id,name,rarity,supertype,subtypes,images"
-    result = subprocess.run(["curl", "-s", "--max-time", "30", url], capture_output=True, text=True)
-    return json.loads(result.stdout)["data"]
-
-def generate_pack(set_id):
-    cards = fetch_cards(set_id)
-
-    # Energy from base1 for sets that don't have their own
-    if set_id in ("base2", "base3", "base5"):
-        energy_pool = fetch_cards("base1")
-        energy_cards = [c for c in energy_pool if c.get("supertype") == "Energy" and "Basic" in c.get("subtypes", [])]
-    else:
-        energy_cards = [c for c in cards if c.get("supertype") == "Energy" and "Basic" in c.get("subtypes", [])]
-
-    holos    = [c for c in cards if c.get("rarity") in ("Rare Holo", "Rare Secret")]
-    rares    = [c for c in cards if c.get("rarity") == "Rare"]
-    uncommons = [c for c in cards if c.get("rarity") == "Uncommon"]
-    commons   = [c for c in cards if c.get("rarity") == "Common"]
-
-    # Rare slot
-    if holos and (not rares or random.random() < HOLO_CHANCE):
-        rare = random.choice(holos)
-        rare["_slot"] = "holo"
-    else:
-        rare = random.choice(rares if rares else holos)
-        rare["_slot"] = "rare"
-
-    # Build pack in reveal order
-    pack = []
-    pack.append({**random.choice(energy_cards), "_slot": "energy"})
-    pack += [{**c, "_slot": "common"}   for c in random.sample(commons, min(6, len(commons)))]
-    pack += [{**c, "_slot": "uncommon"} for c in random.sample(uncommons, min(3, len(uncommons)))]
-    pack.append(rare)
-    return pack
+interface CollectionEntry {
+  card: PokemonCard
+  setId: SetId
+  openedAt: string      // ISO timestamp
+}
 ```
 
 ---
 
-## Validated Test Results
+## Routing & Pages
 
-The implementation was tested against all 3 target prompts with 100% assertion pass rate:
-
-| Test prompt | Set used | Pull | Real API images? | Correct 11-card pack? |
-|-------------|----------|------|-----------------|----------------------|
-| "Open a pack of Pokémon cards for me!" | Base Set (random) | Item Finder (Rare) | ✅ | ✅ |
-| "I want to crack open a Team Rocket booster pack." | Team Rocket (`base5`) | Rocket's Sneak Attack (Holo Rare) | ✅ | ✅ |
-| "Give me a Fossil pack" | Fossil (`base3`) | Raichu (Holo Rare) | ✅ | ✅ |
+| Route | Page | Description |
+|-------|------|-------------|
+| `/` | Home | Shows set selector. When a set is chosen, transitions to pack opener inline. |
+| `/collection` | Collection | Filterable, sortable grid of all collected cards. |
 
 ---
 
-## Suggested App Features
+## Keyboard & Touch
 
-Beyond the basic pack opener, natural extensions include:
+| Trigger | Action |
+|---------|--------|
+| `R` key (pack complete screen) | Rip It Open — reveal all cards at once |
+| `Escape` | Close card modal |
+| Mouse move over card modal | 3D parallax tilt |
+| Touch move over card modal | 3D parallax tilt (mobile) |
 
-- **Set selector UI** — let user choose or randomize the set before opening
-- **Pack animation** — card-by-card flip reveal with staggered timing
-- **Pull history** — track what you've pulled across multiple packs in a session
-- **"Open another pack"** button — re-runs the generation without a page reload
-- **Share your pull** — screenshot-friendly card spread view
-- **Holo shimmer effect** — CSS background gradient animation on the holo card image itself (rainbow foil simulation)
+---
+
+## Storage
+
+All state is persisted to `localStorage` with no server-side component.
+
+| Key | Contents |
+|-----|----------|
+| `pokemon-pack-opener-collection` | `CollectionEntry[]` — all opened cards |
+| `pack-opener-economy` | `{ balance: number, points: number }` |
+| `pack-opener-settings` | `{ economyEnabled: boolean, animationsEnabled: boolean }` |

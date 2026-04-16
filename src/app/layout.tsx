@@ -25,6 +25,9 @@ export default function RootLayout({
         <AnimationProvider>
           <NavBar />
           <main className="flex-1">{children}</main>
+          <footer className="border-t border-white/5 py-4 text-center text-xs text-gray-700">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </footer>
         </AnimationProvider>
       </body>
     </html>
