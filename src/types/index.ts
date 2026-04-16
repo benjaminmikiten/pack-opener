@@ -15,18 +15,39 @@ export interface PokemonCard {
   slot?: CardSlot
   tcgplayer?: {
     prices?: {
+      // Base-era keys
       normal?: { market?: number }
       holofoil?: { market?: number }
+      // WotC non-base era (Gym, Neo, E-Card, …)
+      unlimited?: { market?: number }
+      unlimitedHolofoil?: { market?: number }
+      '1stEdition'?: { market?: number }
+      '1stEditionHolofoil'?: { market?: number }
+      // Catch-all for any other variant
+      [key: string]: { market?: number } | undefined
     }
   }
 }
 
-/** Returns the TCGPlayer market price for a card, preferring holofoil over normal. */
+/** Returns the TCGPlayer market price for a card.
+ *  Checks keys in priority order so Gym/Neo/etc. sets show prices too. */
 export function getMarketPrice(card: PokemonCard): number | undefined {
   const prices = card.tcgplayer?.prices
   if (!prices) return undefined
-  const val = prices.holofoil?.market ?? prices.normal?.market
-  return typeof val === 'number' ? val : undefined
+  // Priority: prefer unlimited/standard printings over 1st-edition for a
+  // representative market price; prefer holofoil variants over normal.
+  const candidates = [
+    prices.holofoil?.market,
+    prices.unlimitedHolofoil?.market,
+    prices['1stEditionHolofoil']?.market,
+    prices.normal?.market,
+    prices.unlimited?.market,
+    prices['1stEdition']?.market,
+  ]
+  for (const val of candidates) {
+    if (typeof val === 'number') return val
+  }
+  return undefined
 }
 
 /** PSA grade multipliers applied to market price. No 10s — never give a perfect. */
