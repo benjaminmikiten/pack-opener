@@ -4,6 +4,18 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { motion, useMotionValue, useSpring, AnimatePresence } from 'framer-motion'
 import { PokemonCard, CollectionRecord, getMarketPrice, getEffectivePrice, PSA_MULTIPLIERS, PSA_GRADE_NAMES } from '@/types'
 
+const PSA_WARNING_KEY = 'pokemon-pack-opener-psa-warned'
+
+function hasPsaWarningBeenShown(): boolean {
+  if (typeof window === 'undefined') return false
+  return localStorage.getItem(PSA_WARNING_KEY) === 'true'
+}
+
+function markPsaWarningShown(): void {
+  if (typeof window === 'undefined') return
+  localStorage.setItem(PSA_WARNING_KEY, 'true')
+}
+
 interface CardModalProps {
   card: PokemonCard | null
   onClose: () => void
@@ -13,7 +25,7 @@ interface CardModalProps {
   onGrade?: (key: string, grade: number) => void
 }
 
-type GradingState = 'idle' | 'grading' | 'revealed'
+type GradingState = 'idle' | 'warning' | 'grading' | 'revealed'
 
 export default function CardModal({ card, onClose, collectionKey, collectionRecord, onGrade }: CardModalProps) {
   const cardRef = useRef<HTMLDivElement>(null)
@@ -27,11 +39,16 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        // Don't let Escape close the modal while a grade is in flight or revealed —
+        // the result is irrevocable and we want the player to see it.
+        if (gradingState === 'grading' || gradingState === 'revealed') return
+        onClose()
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [onClose, gradingState])
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!cardRef.current) return
@@ -42,10 +59,8 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
     y.set(-py * 14)
   }
 
-  const handleMouseLeave = () => {
-    x.set(0)
-    y.set(0)
-  }
+  const handleMouseLeave = () => { x.set(0); y.set(0) }
+  const handleTouchEnd = () => { x.set(0); y.set(0) }
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!cardRef.current) return
@@ -57,14 +72,16 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
     y.set(-py * 14)
   }
 
-  const handleTouchEnd = () => {
-    x.set(0)
-    y.set(0)
-  }
+  const handleGradeButtonClick = useCallback(() => {
+    if (hasPsaWarningBeenShown()) {
+      beginGrading()
+    } else {
+      setGradingState('warning')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startGrading = useCallback(() => {
+  const beginGrading = useCallback(() => {
     setGradingState('grading')
-    // Random grade 1-9 (never 10)
     const grade = Math.floor(Math.random() * 9) + 1
     setTimeout(() => {
       setPendingGrade(grade)
@@ -72,17 +89,17 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
     }, 1200)
   }, [])
 
-  const acceptGrade = useCallback(() => {
+  const acceptWarningAndGrade = useCallback(() => {
+    markPsaWarningShown()
+    beginGrading()
+  }, [beginGrading])
+
+  const commitGrade = useCallback(() => {
     if (pendingGrade !== null && collectionKey && onGrade) {
       onGrade(collectionKey, pendingGrade)
       onClose()
     }
   }, [pendingGrade, collectionKey, onGrade, onClose])
-
-  const declineGrade = useCallback(() => {
-    setGradingState('idle')
-    setPendingGrade(null)
-  }, [])
 
   if (!card) return null
 
@@ -97,13 +114,18 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
   const basePrice = getMarketPrice(card)
   const effectivePrice = collectionRecord ? getEffectivePrice(collectionRecord) : basePrice
 
-  // PSA slab color by grade
   const psaSlabColor = (grade: number) => {
     if (grade >= 9) return '#1a4fa8'
     if (grade >= 7) return '#1a6a3a'
     if (grade >= 5) return '#7a6a10'
     if (grade >= 3) return '#7a3010'
     return '#5a1010'
+  }
+
+  // Backdrop click only allowed when not mid-grade
+  const handleBackdropClick = () => {
+    if (gradingState === 'grading' || gradingState === 'revealed') return
+    onClose()
   }
 
   return (
@@ -114,7 +136,7 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={onClose}
+        onClick={handleBackdropClick}
         style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}
       >
         <motion.div
@@ -185,7 +207,6 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
               onTouchEnd={handleTouchEnd}
               className="relative cursor-grab active:cursor-grabbing"
             >
-              {/* Holo animated glow */}
               {isHolo && (
                 <motion.div
                   className="pointer-events-none absolute -inset-3 rounded-2xl"
@@ -200,14 +221,12 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
                   transition={{ duration: 2.4, repeat: Infinity }}
                 />
               )}
-              {/* Rare gold glow */}
               {isRare && !isHolo && (
                 <div
                   className="pointer-events-none absolute -inset-2 rounded-2xl"
                   style={{ boxShadow: '0 0 35px 8px rgba(255,215,0,0.55)' }}
                 />
               )}
-
               {isHolo && (
                 <div className="holo-shimmer" style={{ borderRadius: '12px', zIndex: 2 }} />
               )}
@@ -249,13 +268,14 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
 
           {/* Grading UI */}
           <AnimatePresence mode="wait">
+            {/* Idle — show "Get it Graded" button */}
             {canGrade && gradingState === 'idle' && (
               <motion.button
                 key="grade-btn"
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -4 }}
-                onClick={startGrading}
+                onClick={handleGradeButtonClick}
                 className="rounded-xl px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:opacity-90"
                 style={{ background: 'linear-gradient(135deg, #1a3a7a, #2a5ab8)', border: '1px solid rgba(100,150,255,0.3)' }}
               >
@@ -263,6 +283,42 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
               </motion.button>
             )}
 
+            {/* One-time warning */}
+            {gradingState === 'warning' && (
+              <motion.div
+                key="warning"
+                initial={{ opacity: 0, scale: 0.92 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.92 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 26 }}
+                className="w-full max-w-xs rounded-2xl border border-white/10 p-5 text-center"
+                style={{ background: '#111827' }}
+              >
+                <div className="mb-2 text-2xl">⚠️</div>
+                <h3 className="mb-2 text-base font-bold text-white">This is permanent</h3>
+                <p className="mb-5 text-sm leading-relaxed text-gray-400">
+                  Once you submit a card for grading, you get whatever grade PSA gives it — good or bad.
+                  There's no undo, no re-roll. Think of it as the real thing.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setGradingState('idle')}
+                    className="flex-1 rounded-xl border border-white/10 py-2.5 text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-white"
+                  >
+                    Never mind
+                  </button>
+                  <button
+                    onClick={acceptWarningAndGrade}
+                    className="flex-1 rounded-xl py-2.5 text-sm font-bold text-black"
+                    style={{ background: '#fbbf24' }}
+                  >
+                    I understand
+                  </button>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Submitting spinner */}
             {gradingState === 'grading' && (
               <motion.div
                 key="grading-spinner"
@@ -281,6 +337,7 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
               </motion.div>
             )}
 
+            {/* Grade revealed — no way out */}
             {gradingState === 'revealed' && pendingGrade !== null && (
               <motion.div
                 key="grade-result"
@@ -290,7 +347,6 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
                 transition={{ type: 'spring', stiffness: 280, damping: 22 }}
                 className="flex flex-col items-center gap-3"
               >
-                {/* PSA slab reveal */}
                 <div
                   className="rounded-xl px-8 py-4 text-center font-bold text-white"
                   style={{
@@ -309,31 +365,27 @@ export default function CardModal({ card, onClose, collectionKey, collectionReco
                     </div>
                   )}
                 </div>
-                <div className="flex gap-3">
-                  <button
-                    onClick={declineGrade}
-                    className="rounded-xl border border-white/10 px-5 py-2 text-sm text-gray-400 transition-colors hover:text-white"
-                  >
-                    Decline
-                  </button>
-                  <button
-                    onClick={acceptGrade}
-                    className="rounded-xl px-5 py-2 text-sm font-bold text-black transition-colors"
-                    style={{ background: '#fbbf24' }}
-                  >
-                    Accept Grade
-                  </button>
-                </div>
+                <button
+                  onClick={commitGrade}
+                  className="rounded-xl px-8 py-2.5 text-sm font-bold text-black transition-opacity hover:opacity-90"
+                  style={{ background: '#fbbf24' }}
+                >
+                  Accept Grade
+                </button>
+                <p className="text-xs text-gray-600">The grade has been recorded. You cannot change it.</p>
               </motion.div>
             )}
           </AnimatePresence>
 
-          <button
-            onClick={onClose}
-            className="rounded-full bg-white/10 px-6 py-2 text-sm text-gray-300 transition-colors hover:bg-white/20 hover:text-white"
-          >
-            Close
-          </button>
+          {/* Close button — hidden while a grade is in progress */}
+          {gradingState !== 'grading' && gradingState !== 'revealed' && (
+            <button
+              onClick={onClose}
+              className="rounded-full bg-white/10 px-6 py-2 text-sm text-gray-300 transition-colors hover:bg-white/20 hover:text-white"
+            >
+              Close
+            </button>
+          )}
         </motion.div>
       </motion.div>
     </AnimatePresence>
