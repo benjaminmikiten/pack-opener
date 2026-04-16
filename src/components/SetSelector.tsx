@@ -10,6 +10,7 @@ interface SetSelectorProps {
   balance: number
   hydrated: boolean
   economyEnabled: boolean
+  hardModeEnabled: boolean
 }
 
 function SetCard({
@@ -17,11 +18,13 @@ function SetCard({
   onClick,
   canAfford,
   showPrice = true,
+  hardModeEnabled = false,
 }: {
   set: SetInfo
   onClick: () => void
   canAfford: boolean
   showPrice?: boolean
+  hardModeEnabled?: boolean
 }) {
   const [logoLoaded, setLogoLoaded] = useState(false)
 
@@ -94,7 +97,10 @@ function SetCard({
       </h3>
       {showPrice ? (
         <p className="mt-1 text-xs" style={{ color: canAfford ? '#9ca3af' : '#555' }}>
-          {canAfford ? `$${set.price.toFixed(2)}` : `Need $${set.price.toFixed(2)}`}
+          {(() => {
+            const price = hardModeEnabled ? set.hardModePrice : set.price
+            return canAfford ? `$${price.toFixed(2)}` : `Need $${price.toFixed(2)}`
+          })()}
         </p>
       ) : (
         <p className="mt-1 text-xs text-gray-400">Click to open a pack</p>
@@ -103,7 +109,7 @@ function SetCard({
   )
 }
 
-export default function SetSelector({ onSelectSet, balance, hydrated, economyEnabled }: SetSelectorProps) {
+export default function SetSelector({ onSelectSet, balance, hydrated, economyEnabled, hardModeEnabled }: SetSelectorProps) {
   const showEconomy = economyEnabled && hydrated
 
   return (
@@ -155,8 +161,9 @@ export default function SetSelector({ onSelectSet, balance, hydrated, economyEna
             <SetCard
               set={set}
               onClick={() => onSelectSet(set.id)}
-              canAfford={!economyEnabled || (hydrated && balance >= set.price)}
+              canAfford={!economyEnabled || (hydrated && balance >= (hardModeEnabled ? set.hardModePrice : set.price))}
               showPrice={economyEnabled}
+              hardModeEnabled={hardModeEnabled}
             />
           </motion.div>
         ))}

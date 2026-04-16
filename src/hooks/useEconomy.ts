@@ -4,6 +4,7 @@ import { useCallback, useSyncExternalStore } from 'react'
 
 const STORAGE_KEY = 'pack-opener-economy'
 const STARTING_BALANCE = 10.0
+export const HARD_MODE_STARTING_BALANCE = 500.0
 
 interface Wallet {
   balance: number
@@ -72,8 +73,8 @@ export function useEconomy() {
     notify()
   }, [])
 
-  const resetEconomy = useCallback(() => {
-    writeWallet({ balance: STARTING_BALANCE })
+  const resetEconomy = useCallback((amount: number = STARTING_BALANCE) => {
+    writeWallet({ balance: amount })
     notify()
   }, [])
 

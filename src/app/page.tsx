@@ -13,17 +13,19 @@ export default function Home() {
   const [selectedSet, setSelectedSet] = useState<SetId | null>(null)
   const { addPack } = useCollection()
   const { balance, hydrated, deductPackCost } = useEconomy()
-  const { economyEnabled } = useSettings()
+  const { economyEnabled, hardModeEnabled } = useSettings()
 
   const handleSelectSet = useCallback(
     (setId: SetId) => {
       if (economyEnabled) {
-        const ok = deductPackCost(SET_MAP[setId].price)
+        const set = SET_MAP[setId]
+        const price = hardModeEnabled ? set.hardModePrice : set.price
+        const ok = deductPackCost(price)
         if (!ok) return
       }
       setSelectedSet(setId)
     },
-    [economyEnabled, deductPackCost]
+    [economyEnabled, hardModeEnabled, deductPackCost]
   )
 
   const handleBack = useCallback(() => setSelectedSet(null), [])
@@ -46,6 +48,7 @@ export default function Home() {
       balance={balance}
       hydrated={hydrated}
       economyEnabled={economyEnabled}
+      hardModeEnabled={hardModeEnabled}
     />
   )
 }
